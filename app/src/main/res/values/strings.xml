@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">POS &amp; Invoice</string>
+    <string name="company_logo">Company Logo</string>
+    <string name="add_logo">Add Logo</string>
+    <string name="change_logo">Change Logo</string>
+    <string name="remove_logo">Remove Logo</string>
+    <string name="logo_preview">Logo Preview</string>
+</resources>

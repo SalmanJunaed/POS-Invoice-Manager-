@@ -1,0 +1,6 @@
+{
+  "name": "POS & Invoice",
+  "description": "100% offline Android POS & Invoice Manager with local Room database, Bluetooth ESC/POS thermal printing, Excel import/export, and dual English/Bangla language support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
