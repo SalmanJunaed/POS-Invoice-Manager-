@@ -1607,16 +1607,26 @@ fun ReceiptDetailsDialog(
                             val receiptFontSize = if (is80mm) 9.5.sp else 11.sp
                             val receiptLineHeight = if (is80mm) 13.5.sp else 15.sp
 
-                            Text(
-                                text = receiptText.ifBlank {
-                                    "Loading receipt text..."
-                                },
-                                modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = receiptFontSize,
-                                lineHeight = receiptLineHeight,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            if (receiptText.isBlank()) {
+                                Text(
+                                    text = "Loading receipt text...",
+                                    modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = receiptFontSize,
+                                    lineHeight = receiptLineHeight,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            } else {
+                                ReceiptFormattedBody(
+                                    bodyText = receiptText,
+                                    is80mm = is80mm,
+                                    receiptFontSize = receiptFontSize,
+                                    receiptLineHeight = receiptLineHeight,
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    separatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    explicitLines = lines
+                                )
+                            }
                         }
                     }
                 }

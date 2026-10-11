@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -49,14 +50,21 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.pos.core.util.CompanyLogoManager
 import com.example.pos.data.Localization
+import com.example.pos.data.db.InvoiceLineEntity
+import com.example.pos.domain.FinancialCalculationEngine
+import com.example.pos.printer.ThermalReceiptFormatter
 import com.example.pos.ui.components.CompanyLogoView
 
 @Composable
@@ -193,74 +201,15 @@ fun ReceiptPreviewDialog(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // Body of Receipt (branch, address, phone, metadata, items, totals, full paid, footer note)
-                        val fullPaidMarker = "[✓] FULL PAID"
-                        val hasFullPaidInBody = remainingReceiptBody.contains(fullPaidMarker)
-
-                        if (hasFullPaidInBody) {
-                            val parts = remainingReceiptBody.split(fullPaidMarker)
-                            val preText = parts.getOrNull(0) ?: ""
-                            val postText = parts.getOrNull(1) ?: ""
-
-                            if (preText.isNotBlank()) {
-                                Text(
-                                    text = preText.trimEnd(),
-                                    modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = receiptFontSize,
-                                    lineHeight = receiptLineHeight,
-                                    softWrap = false,
-                                    color = Color(0xFF1A1A1A)
-                                )
-                            }
-
-                            // Prominent Green Check/Tick & Full Paid Badge
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = Color(0xFF2E7D32),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Full Paid",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = Color(0xFF2E7D32)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            if (postText.isNotBlank()) {
-                                Text(
-                                    text = postText.trimStart(),
-                                    modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = receiptFontSize,
-                                    lineHeight = receiptLineHeight,
-                                    softWrap = false,
-                                    color = Color(0xFF1A1A1A)
-                                )
-                            }
-                        } else {
-                            Text(
-                                text = remainingReceiptBody,
-                                modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = receiptFontSize,
-                                lineHeight = receiptLineHeight,
-                                softWrap = false,
-                                color = Color(0xFF1A1A1A)
-                            )
-                        }
+                        // Body of Receipt (branch, address, phone, metadata, aligned item table, totals, full paid, footer note)
+                        ReceiptFormattedBody(
+                            bodyText = remainingReceiptBody,
+                            is80mm = is80mm,
+                            receiptFontSize = receiptFontSize,
+                            receiptLineHeight = receiptLineHeight,
+                            textColor = Color(0xFF1A1A1A),
+                            separatorColor = Color(0xFF555555)
+                        )
                     }
                 }
 
@@ -412,3 +361,715 @@ private fun parseReceiptForPreview(receiptText: String, configuredName: String?)
     val remaining = lines.subList(splitAt, lines.size).joinToString("\n")
     return title to remaining
 }
+
+internal data class VoucherItemTableRow(
+    val itemName: String,
+    val qty: String,
+    val unit: String,
+    val rate: String,
+    val total: String
+)
+
+internal data class ParsedVoucherTable(
+    val isFiveColumn: Boolean,
+    val separatorWidth: Int,
+    val rows: List<VoucherItemTableRow>
+)
+
+internal data class ParsedReceiptBodySections(
+    val preTableText: String,
+    val table: ParsedVoucherTable,
+    val postTableText: String
+)
+
+@Composable
+internal fun ReceiptFormattedBody(
+    bodyText: String,
+    is80mm: Boolean,
+    receiptFontSize: TextUnit,
+    receiptLineHeight: TextUnit,
+    textColor: Color,
+    separatorColor: Color,
+    explicitLines: List<InvoiceLineEntity> = emptyList()
+) {
+    val parsedSections = remember(bodyText, explicitLines) {
+        parseReceiptSectionsForPreview(bodyText, explicitLines)
+    }
+
+    if (parsedSections != null) {
+        val density = LocalDensity.current
+        val textMeasurer = rememberTextMeasurer()
+        val sepWidth = parsedSections.table.separatorWidth
+        val measuredSlipWidthDp = remember(sepWidth, receiptFontSize, density) {
+            val widthPx = textMeasurer.measure(
+                text = "=".repeat(sepWidth),
+                style = TextStyle(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = receiptFontSize
+                ),
+                softWrap = false,
+                maxLines = 1
+            ).size.width
+            with(density) { widthPx.toDp() }
+        }
+
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            val tableWidth = if (measuredSlipWidthDp >= 180.dp) {
+                minOf(maxWidth, measuredSlipWidthDp)
+            } else {
+                maxWidth
+            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (parsedSections.preTableText.isNotBlank()) {
+                    Text(
+                        text = parsedSections.preTableText.trimEnd(),
+                        modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = receiptFontSize,
+                        lineHeight = receiptLineHeight,
+                        softWrap = false,
+                        color = textColor
+                    )
+                }
+
+                VoucherItemTable(
+                    table = parsedSections.table,
+                    is80mm = is80mm,
+                    receiptFontSize = receiptFontSize,
+                    receiptLineHeight = receiptLineHeight,
+                    textColor = textColor,
+                    separatorColor = separatorColor,
+                    modifier = Modifier.width(tableWidth)
+                )
+
+                if (parsedSections.postTableText.isNotBlank()) {
+                    ReceiptBodyWithFullPaidBadge(
+                        text = parsedSections.postTableText.trimStart('\n'),
+                        receiptFontSize = receiptFontSize,
+                        receiptLineHeight = receiptLineHeight,
+                        textColor = textColor
+                    )
+                }
+            }
+        }
+    } else {
+        ReceiptBodyWithFullPaidBadge(
+            text = bodyText,
+            receiptFontSize = receiptFontSize,
+            receiptLineHeight = receiptLineHeight,
+            textColor = textColor
+        )
+    }
+}
+
+@Composable
+private fun ReceiptBodyWithFullPaidBadge(
+    text: String,
+    receiptFontSize: TextUnit,
+    receiptLineHeight: TextUnit,
+    textColor: Color
+) {
+    val fullPaidMarker = "[✓] FULL PAID"
+    val hasFullPaidInBody = text.contains(fullPaidMarker)
+
+    if (hasFullPaidInBody) {
+        val parts = text.split(fullPaidMarker)
+        val preText = parts.getOrNull(0) ?: ""
+        val postText = parts.getOrNull(1) ?: ""
+
+        if (preText.isNotBlank()) {
+            Text(
+                text = preText.trimEnd(),
+                modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+                fontFamily = FontFamily.Monospace,
+                fontSize = receiptFontSize,
+                lineHeight = receiptLineHeight,
+                softWrap = false,
+                color = textColor
+            )
+        }
+
+        // Prominent Green Check/Tick & Full Paid Badge
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = Color(0xFF2E7D32),
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Full Paid",
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = Color(0xFF2E7D32)
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+
+        if (postText.isNotBlank()) {
+            Text(
+                text = postText.trimStart(),
+                modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+                fontFamily = FontFamily.Monospace,
+                fontSize = receiptFontSize,
+                lineHeight = receiptLineHeight,
+                softWrap = false,
+                color = textColor
+            )
+        }
+    } else {
+        Text(
+            text = text,
+            modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+            fontFamily = FontFamily.Monospace,
+            fontSize = receiptFontSize,
+            lineHeight = receiptLineHeight,
+            softWrap = false,
+            color = textColor
+        )
+    }
+}
+
+@Composable
+private fun VoucherItemTable(
+    table: ParsedVoucherTable,
+    is80mm: Boolean,
+    receiptFontSize: TextUnit,
+    receiptLineHeight: TextUnit,
+    textColor: Color,
+    separatorColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val cellFontSize = if (is80mm) receiptFontSize else 10.5.sp
+    val cellLineHeight = if (is80mm) receiptLineHeight else 14.sp
+    val minorSeparator = "-".repeat(table.separatorWidth)
+
+    Column(
+        modifier = modifier.testTag("voucher_item_table"),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Table Column Header Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 1.dp)
+                .testTag("voucher_item_table_header"),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            if (table.isFiveColumn) {
+                Text(
+                    text = "Item Description",
+                    modifier = Modifier.weight(1.85f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = cellFontSize,
+                    lineHeight = cellLineHeight,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Start,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = textColor
+                )
+                Text(
+                    text = "Qty",
+                    modifier = Modifier.weight(0.60f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = cellFontSize,
+                    lineHeight = cellLineHeight,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    softWrap = false,
+                    color = textColor
+                )
+                Text(
+                    text = "Unit",
+                    modifier = Modifier.weight(0.60f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = cellFontSize,
+                    lineHeight = cellLineHeight,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Start,
+                    maxLines = 1,
+                    softWrap = false,
+                    color = textColor
+                )
+                Text(
+                    text = "Rate",
+                    modifier = Modifier.weight(0.85f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = cellFontSize,
+                    lineHeight = cellLineHeight,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    softWrap = false,
+                    color = textColor
+                )
+                Text(
+                    text = "Total",
+                    modifier = Modifier.weight(0.95f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = cellFontSize,
+                    lineHeight = cellLineHeight,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    softWrap = false,
+                    color = textColor
+                )
+            } else {
+                Text(
+                    text = "Item Name",
+                    modifier = Modifier.weight(1.35f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = cellFontSize,
+                    lineHeight = cellLineHeight,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Start,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = textColor
+                )
+                Text(
+                    text = "Qty",
+                    modifier = Modifier.weight(0.75f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = cellFontSize,
+                    lineHeight = cellLineHeight,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    softWrap = false,
+                    color = textColor
+                )
+                Text(
+                    text = "Rate",
+                    modifier = Modifier.weight(0.90f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = cellFontSize,
+                    lineHeight = cellLineHeight,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    softWrap = false,
+                    color = textColor
+                )
+                Text(
+                    text = "Total",
+                    modifier = Modifier.weight(1.00f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = cellFontSize,
+                    lineHeight = cellLineHeight,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    softWrap = false,
+                    color = textColor
+                )
+            }
+        }
+
+        // Top Table Minor Separator
+        Text(
+            text = minorSeparator,
+            fontFamily = FontFamily.Monospace,
+            fontSize = receiptFontSize,
+            lineHeight = receiptLineHeight,
+            softWrap = false,
+            color = separatorColor
+        )
+
+        // Item Rows
+        table.rows.forEachIndexed { index, row ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp)
+                    .testTag("voucher_item_row_$index"),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                if (table.isFiveColumn) {
+                    Text(
+                        text = row.itemName,
+                        modifier = Modifier
+                            .weight(1.85f)
+                            .testTag("voucher_item_name_$index"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = cellFontSize,
+                        lineHeight = cellLineHeight,
+                        textAlign = TextAlign.Start,
+                        color = textColor
+                    )
+                    Text(
+                        text = row.qty,
+                        modifier = Modifier
+                            .weight(0.60f)
+                            .testTag("voucher_item_qty_$index"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = if (row.qty.length > 5) (cellFontSize.value - 1f).sp else cellFontSize,
+                        lineHeight = cellLineHeight,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        color = textColor
+                    )
+                    Text(
+                        text = row.unit,
+                        modifier = Modifier
+                            .weight(0.60f)
+                            .testTag("voucher_item_unit_$index"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = if (row.unit.length > 5) (cellFontSize.value - 1f).sp else cellFontSize,
+                        lineHeight = cellLineHeight,
+                        textAlign = TextAlign.Start,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        color = textColor
+                    )
+                    Text(
+                        text = row.rate,
+                        modifier = Modifier
+                            .weight(0.85f)
+                            .testTag("voucher_item_rate_$index"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = if (row.rate.length > 8) (cellFontSize.value - 1f).sp else cellFontSize,
+                        lineHeight = cellLineHeight,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        color = textColor
+                    )
+                    Text(
+                        text = row.total,
+                        modifier = Modifier
+                            .weight(0.95f)
+                            .testTag("voucher_item_total_$index"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = if (row.total.length > 8) (cellFontSize.value - 1f).sp else cellFontSize,
+                        lineHeight = cellLineHeight,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        color = textColor
+                    )
+                } else {
+                    Text(
+                        text = row.itemName,
+                        modifier = Modifier
+                            .weight(1.35f)
+                            .testTag("voucher_item_name_$index"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = cellFontSize,
+                        lineHeight = cellLineHeight,
+                        textAlign = TextAlign.Start,
+                        color = textColor
+                    )
+                    Text(
+                        text = row.qty,
+                        modifier = Modifier
+                            .weight(0.75f)
+                            .testTag("voucher_item_qty_$index"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = if (row.qty.length > 6) (cellFontSize.value - 1f).sp else cellFontSize,
+                        lineHeight = cellLineHeight,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        color = textColor
+                    )
+                    Text(
+                        text = row.rate,
+                        modifier = Modifier
+                            .weight(0.90f)
+                            .testTag("voucher_item_rate_$index"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = if (row.rate.length > 7) (cellFontSize.value - 1f).sp else cellFontSize,
+                        lineHeight = cellLineHeight,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        color = textColor
+                    )
+                    Text(
+                        text = row.total,
+                        modifier = Modifier
+                            .weight(1.00f)
+                            .testTag("voucher_item_total_$index"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = if (row.total.length > 8) (cellFontSize.value - 1f).sp else cellFontSize,
+                        lineHeight = cellLineHeight,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        color = textColor
+                    )
+                }
+            }
+        }
+
+        // Bottom Table Minor Separator
+        Text(
+            text = minorSeparator,
+            fontFamily = FontFamily.Monospace,
+            fontSize = receiptFontSize,
+            lineHeight = receiptLineHeight,
+            softWrap = false,
+            color = separatorColor
+        )
+    }
+}
+
+private val DETAIL_58MM_REGEX = Regex(
+    """^\s+(.+?)\s+x\s+(\d+(?:\.\d*)?)\s+(\d+(?:\.\d*)?)\s+BDT\s*$"""
+)
+
+private val SINGLE_58MM_REGEX = Regex(
+    """^(.+?)\s+(\S+)\s+(\d+(?:\.\d*)?)\s+(\d+(?:\.\d*)?)\s*$"""
+)
+
+private val ROW_80MM_REGEX = Regex(
+    """^(.+?)\s+(\d+(?:\.\d*)?)\s+(\S+(?:\s+\S+)?)\s+(\d+(?:\.\d*)?)\s+(\d+(?:\.\d*)?)\s*$"""
+)
+
+private val ROW_80MM_NO_UNIT_REGEX = Regex(
+    """^(.+?)\s+(\d+(?:\.\d*)?)\s{2,}(\d+(?:\.\d*)?)\s+(\d+(?:\.\d*)?)\s*$"""
+)
+
+private fun isMinorSeparatorLine(line: String): Boolean {
+    val trimmed = line.trim()
+    return trimmed.length >= 16 && trimmed.all { it == '-' }
+}
+
+internal fun parseReceiptSectionsForPreview(
+    bodyText: String,
+    explicitLines: List<InvoiceLineEntity> = emptyList()
+): ParsedReceiptBodySections? {
+    val allLines = bodyText.lines()
+    val tableHeaderIdx = allLines.indexOfFirst { line ->
+        val t = line.trim()
+        (t.startsWith("Item Name") || t.startsWith("Item Description")) &&
+            t.contains("Qty") && t.contains("Rate") && t.contains("Total")
+    }
+    if (tableHeaderIdx == -1) return null
+
+    val headerLine = allLines[tableHeaderIdx].trim()
+    val isFiveColumn = headerLine.startsWith("Item Description")
+    val topSepIdx = if (tableHeaderIdx + 1 < allLines.size && isMinorSeparatorLine(allLines[tableHeaderIdx + 1])) {
+        tableHeaderIdx + 1
+    } else {
+        tableHeaderIdx
+    }
+    val bottomSepIdx = ((topSepIdx + 1) until allLines.size).firstOrNull { idx ->
+        isMinorSeparatorLine(allLines[idx])
+    } ?: return null
+
+    val sepWidth = if (topSepIdx > tableHeaderIdx) {
+        allLines[topSepIdx].trim().length
+    } else if (isFiveColumn) {
+        ThermalReceiptFormatter.WIDTH_80MM
+    } else {
+        ThermalReceiptFormatter.WIDTH_58MM
+    }
+
+    val preTableText = allLines.subList(0, tableHeaderIdx).joinToString("\n")
+    val rawItemLines = allLines.subList(topSepIdx + 1, bottomSepIdx)
+    val postTableText = allLines.subList(bottomSepIdx + 1, allLines.size).joinToString("\n")
+
+    val rows = if (explicitLines.isNotEmpty()) {
+        explicitLines.map { item ->
+            val rateStr = FinancialCalculationEngine.formatPaisaToBdt(item.unitPricePaisa)
+            val totalStr = FinancialCalculationEngine.formatPaisaToBdt(item.lineTotalPaisa)
+            if (isFiveColumn) {
+                VoucherItemTableRow(
+                    itemName = item.itemName,
+                    qty = item.quantityStr.trim(),
+                    unit = item.unit.trim().take(5),
+                    rate = rateStr,
+                    total = totalStr
+                )
+            } else {
+                VoucherItemTableRow(
+                    itemName = item.itemName,
+                    qty = "${item.quantityStr.trim()}${item.unit.trim().take(2)}".trim(),
+                    unit = "",
+                    rate = rateStr,
+                    total = totalStr
+                )
+            }
+        }
+    } else if (isFiveColumn) {
+        parse80mmItemLines(rawItemLines)
+    } else {
+        parse58mmItemLines(rawItemLines)
+    }
+
+    return ParsedReceiptBodySections(
+        preTableText = preTableText,
+        table = ParsedVoucherTable(
+            isFiveColumn = isFiveColumn,
+            separatorWidth = sepWidth,
+            rows = rows
+        ),
+        postTableText = postTableText
+    )
+}
+
+private fun parse58mmItemLines(rawItemLines: List<String>): List<VoucherItemTableRow> {
+    val rows = mutableListOf<VoucherItemTableRow>()
+    val pendingNameLines = mutableListOf<String>()
+
+    for (i in rawItemLines.indices) {
+        val line = rawItemLines[i]
+        if (line.isBlank()) continue
+
+        val detailMatch = DETAIL_58MM_REGEX.matchEntire(line)
+        if (detailMatch != null) {
+            val fullName = if (pendingNameLines.isNotEmpty()) {
+                pendingNameLines.joinToString(" ") { it.trim() }
+            } else {
+                "Item"
+            }
+            pendingNameLines.clear()
+            rows.add(
+                VoucherItemTableRow(
+                    itemName = fullName,
+                    qty = detailMatch.groupValues[1].trim(),
+                    unit = "",
+                    rate = detailMatch.groupValues[2].trim(),
+                    total = detailMatch.groupValues[3].trim()
+                )
+            )
+            continue
+        }
+
+        val singleMatch = SINGLE_58MM_REGEX.matchEntire(line)
+        val nextIsDetail = (i + 1 < rawItemLines.size) && DETAIL_58MM_REGEX.matches(rawItemLines[i + 1])
+        if (singleMatch != null && pendingNameLines.isEmpty() && !nextIsDetail) {
+            val candidateName = singleMatch.groupValues[1].trim()
+            if (ThermalReceiptFormatter.getVisualWidth(candidateName) <= 12) {
+                rows.add(
+                    VoucherItemTableRow(
+                        itemName = candidateName,
+                        qty = singleMatch.groupValues[2].trim(),
+                        unit = "",
+                        rate = singleMatch.groupValues[3].trim(),
+                        total = singleMatch.groupValues[4].trim()
+                    )
+                )
+                continue
+            }
+        }
+
+        pendingNameLines.add(line.trim())
+    }
+
+    if (pendingNameLines.isNotEmpty()) {
+        for (pending in pendingNameLines) {
+            val fallbackMatch = SINGLE_58MM_REGEX.matchEntire(pending)
+            if (fallbackMatch != null) {
+                rows.add(
+                    VoucherItemTableRow(
+                        itemName = fallbackMatch.groupValues[1].trim(),
+                        qty = fallbackMatch.groupValues[2].trim(),
+                        unit = "",
+                        rate = fallbackMatch.groupValues[3].trim(),
+                        total = fallbackMatch.groupValues[4].trim()
+                    )
+                )
+            } else {
+                rows.add(
+                    VoucherItemTableRow(
+                        itemName = pending,
+                        qty = "",
+                        unit = "",
+                        rate = "",
+                        total = ""
+                    )
+                )
+            }
+        }
+    }
+
+    return rows
+}
+
+private fun parse80mmItemLines(rawItemLines: List<String>): List<VoucherItemTableRow> {
+    val rows = mutableListOf<VoucherItemTableRow>()
+
+    for (line in rawItemLines) {
+        if (line.isBlank()) continue
+
+        val match = ROW_80MM_REGEX.matchEntire(line)
+        if (match != null) {
+            rows.add(
+                VoucherItemTableRow(
+                    itemName = match.groupValues[1].trim(),
+                    qty = match.groupValues[2].trim(),
+                    unit = match.groupValues[3].trim(),
+                    rate = match.groupValues[4].trim(),
+                    total = match.groupValues[5].trim()
+                )
+            )
+            continue
+        }
+
+        val noUnitMatch = ROW_80MM_NO_UNIT_REGEX.matchEntire(line)
+        if (noUnitMatch != null) {
+            rows.add(
+                VoucherItemTableRow(
+                    itemName = noUnitMatch.groupValues[1].trim(),
+                    qty = noUnitMatch.groupValues[2].trim(),
+                    unit = "",
+                    rate = noUnitMatch.groupValues[3].trim(),
+                    total = noUnitMatch.groupValues[4].trim()
+                )
+            )
+            continue
+        }
+
+        if (rows.isNotEmpty()) {
+            val lastIdx = rows.lastIndex
+            val prev = rows[lastIdx]
+            rows[lastIdx] = prev.copy(
+                itemName = "${prev.itemName} ${line.trim()}".trim()
+            )
+        } else {
+            rows.add(
+                VoucherItemTableRow(
+                    itemName = line.trim(),
+                    qty = "",
+                    unit = "",
+                    rate = "",
+                    total = ""
+                )
+            )
+        }
+    }
+
+    return rows
+}
+

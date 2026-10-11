@@ -10,16 +10,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -84,6 +89,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.pos.data.Localization
 import com.example.pos.data.db.ProductEntity
 import com.example.pos.domain.FinancialCalculationEngine
@@ -1212,6 +1218,7 @@ fun ProductPickerBottomSheet(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CustomItemDialog(
     language: String,
@@ -1224,18 +1231,26 @@ fun CustomItemDialog(
     var unit by remember { mutableStateOf("Unit") }
     var itemType by remember { mutableStateOf("Product") }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 16.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .widthIn(max = 480.dp)
+                .imePadding()
                 .testTag("custom_item_dialog"),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
+            // Single keyboard-safe scrollable container so all fields and action buttons remain reachable
             Column(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
             ) {
                 // Header Bar: Title clearly separated with close icon
                 Row(
@@ -1264,84 +1279,202 @@ fun CustomItemDialog(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                // Scrollable Form Body: Keyboard-safe with clean vertical spacing
-                Column(
+                // Form Body with clear label-to-input spacing and responsive field layout
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
                 ) {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text(Localization.get(Localization.Key.CUSTOM_ITEM_NAME, language), fontSize = 12.sp) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        singleLine = true
-                    )
+                    val useTwoColumnPriceQty = maxWidth >= 280.dp
 
-                    // Item Type Selection
-                    Column {
-                        Text(
-                            text = Localization.get(Localization.Key.CUSTOM_ITEM_TYPE, language),
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            val types = listOf("Product", "Service", "Liquid")
-                            types.forEach { typeOption ->
-                                val selected = itemType.equals(typeOption, ignoreCase = true)
-                                val labelText = when (typeOption) {
-                                    "Product" -> Localization.get(Localization.Key.FILTER_PRODUCT, language)
-                                    "Service" -> Localization.get(Localization.Key.FILTER_SERVICE, language)
-                                    "Liquid" -> Localization.get(Localization.Key.FILTER_LIQUID, language)
-                                    else -> typeOption
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // 1. Item / Service Name Field
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = Localization.get(Localization.Key.CUSTOM_ITEM_NAME, language),
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = name,
+                                onValueChange = { name = it },
+                                placeholder = {
+                                    Text(
+                                        text = Localization.get(Localization.Key.CUSTOM_ITEM_NAME, language),
+                                        fontSize = 13.sp
+                                    )
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("custom_item_name_input"),
+                                shape = RoundedCornerShape(8.dp),
+                                singleLine = true
+                            )
+                        }
+
+                        // 2. Item Type Selection
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = Localization.get(Localization.Key.CUSTOM_ITEM_TYPE, language),
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                val types = listOf("Product", "Service", "Liquid")
+                                types.forEach { typeOption ->
+                                    val selected = itemType.equals(typeOption, ignoreCase = true)
+                                    val labelText = when (typeOption) {
+                                        "Product" -> Localization.get(Localization.Key.FILTER_PRODUCT, language)
+                                        "Service" -> Localization.get(Localization.Key.FILTER_SERVICE, language)
+                                        "Liquid" -> Localization.get(Localization.Key.FILTER_LIQUID, language)
+                                        else -> typeOption
+                                    }
+                                    FilterChip(
+                                        selected = selected,
+                                        onClick = { itemType = typeOption },
+                                        label = { Text(labelText, fontSize = 12.sp) },
+                                        modifier = Modifier.testTag("custom_type_chip_${typeOption.lowercase()}")
+                                    )
                                 }
-                                FilterChip(
-                                    selected = selected,
-                                    onClick = { itemType = typeOption },
-                                    label = { Text(labelText, fontSize = 12.sp) },
-                                    modifier = Modifier.testTag("custom_type_chip_${typeOption.lowercase()}")
+                            }
+                        }
+
+                        // 3. Price & Quantity Fields (Responsive 2-column or stacked on very narrow screens)
+                        if (useTwoColumnPriceQty) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = Localization.get(Localization.Key.CUSTOM_ITEM_PRICE, language),
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    OutlinedTextField(
+                                        value = price,
+                                        onValueChange = { price = it },
+                                        placeholder = { Text("0.00", fontSize = 13.sp) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("custom_item_price_input"),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        shape = RoundedCornerShape(8.dp),
+                                        singleLine = true
+                                    )
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = Localization.get(Localization.Key.CUSTOM_ITEM_QTY, language),
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    OutlinedTextField(
+                                        value = qty,
+                                        onValueChange = { qty = it },
+                                        placeholder = { Text("1", fontSize = 13.sp) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("custom_item_qty_input"),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        shape = RoundedCornerShape(8.dp),
+                                        singleLine = true
+                                    )
+                                }
+                            }
+                        } else {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text(
+                                    text = Localization.get(Localization.Key.CUSTOM_ITEM_PRICE, language),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedTextField(
+                                    value = price,
+                                    onValueChange = { price = it },
+                                    placeholder = { Text("0.00", fontSize = 13.sp) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("custom_item_price_input"),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    shape = RoundedCornerShape(8.dp),
+                                    singleLine = true
+                                )
+                            }
+
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text(
+                                    text = Localization.get(Localization.Key.CUSTOM_ITEM_QTY, language),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedTextField(
+                                    value = qty,
+                                    onValueChange = { qty = it },
+                                    placeholder = { Text("1", fontSize = 13.sp) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("custom_item_qty_input"),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    shape = RoundedCornerShape(8.dp),
+                                    singleLine = true
                                 )
                             }
                         }
-                    }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = price,
-                            onValueChange = { price = it },
-                            label = { Text(Localization.get(Localization.Key.CUSTOM_ITEM_PRICE, language), fontSize = 12.sp) },
-                            modifier = Modifier.weight(1f),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            shape = RoundedCornerShape(8.dp),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = qty,
-                            onValueChange = { qty = it },
-                            label = { Text(Localization.get(Localization.Key.CUSTOM_ITEM_QTY, language), fontSize = 12.sp) },
-                            modifier = Modifier.weight(0.7f),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            shape = RoundedCornerShape(8.dp),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = unit,
-                            onValueChange = { unit = it },
-                            label = { Text(Localization.get(Localization.Key.CUSTOM_ITEM_UNIT, language), fontSize = 12.sp) },
-                            modifier = Modifier.weight(0.7f),
-                            shape = RoundedCornerShape(8.dp),
-                            singleLine = true
-                        )
+                        // 4. Unit Field (Full width so Bangla/English unit label and text are never clipped)
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = Localization.get(Localization.Key.CUSTOM_ITEM_UNIT, language),
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = unit,
+                                onValueChange = { unit = it },
+                                placeholder = {
+                                    Text(
+                                        text = Localization.get(Localization.Key.CUSTOM_ITEM_UNIT, language),
+                                        fontSize = 13.sp
+                                    )
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("custom_item_unit_input"),
+                                shape = RoundedCornerShape(8.dp),
+                                singleLine = true
+                            )
+                        }
                     }
                 }
 
@@ -1358,7 +1491,9 @@ fun CustomItemDialog(
                     TextButton(
                         onClick = onDismiss,
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(44.dp)
+                        modifier = Modifier
+                            .height(44.dp)
+                            .testTag("custom_item_cancel_btn")
                     ) {
                         Text(Localization.get(Localization.Key.CANCEL, language))
                     }
@@ -1371,7 +1506,9 @@ fun CustomItemDialog(
                         },
                         enabled = name.isNotBlank() && price.isNotBlank(),
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(44.dp)
+                        modifier = Modifier
+                            .height(44.dp)
+                            .testTag("custom_item_add_btn")
                     ) {
                         Text(Localization.get(Localization.Key.BTN_ADD, language))
                     }
