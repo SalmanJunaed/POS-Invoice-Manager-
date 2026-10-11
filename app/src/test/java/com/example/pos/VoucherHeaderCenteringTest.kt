@@ -240,4 +240,95 @@ class VoucherHeaderCenteringTest {
         assertTrue("FULL PAID must be present", posFullPaid >= 0)
         assertTrue("FULL PAID must be placed before footer note", posFullPaid < posFooter)
     }
+
+    @Test
+    fun testFooterCenteringAndEscPosNoDoublePadding_58mmAnd80mm() {
+        val header = CompanyHeaderEntity(
+            companyName = "Salman's Enterprise",
+            branchName = "Uttara Branch",
+            branchNumber = "B-01",
+            address = "House 12, Road 5, Sector 7, Uttara, Dhaka",
+            phoneNumber = "01700000000"
+        )
+        val invoice = InvoiceEntity(
+            orderId = "DH-FOOTER-TEST",
+            dateTime = System.currentTimeMillis(),
+            operatorId = "OP-1",
+            operatorName = "Admin",
+            customerInfo = "01711000000",
+            rawTotalPaisa = 25000L,
+            roundedTotalBdt = 250L,
+            footerNote = "Thank you for shopping with us!\nGoods once sold cannot be returned without receipt"
+        )
+        val lines = listOf(
+            InvoiceLineEntity(
+                orderId = "DH-FOOTER-TEST",
+                itemId = "ITM-1",
+                itemName = "Engine Oil",
+                itemType = "product",
+                unit = "Pcs",
+                quantityStr = "1",
+                unitPricePaisa = 25000L,
+                lineTotalPaisa = 25000L,
+                sortOrder = 1
+            )
+        )
+
+        for ((paperSize, width) in listOf("58mm" to 32, "80mm" to 48)) {
+            val receiptText = EscPosPrinterEngine.generateReceiptText(
+                header = header,
+                invoice = invoice,
+                lines = lines,
+                paperSize = paperSize,
+                footerLine1 = "Thank you for shopping with us!",
+                footerLine2 = "Goods once sold cannot be returned without receipt",
+                isFullPaid = true
+            )
+
+            // Verify all header lines are centered across width
+            val headerLines = extractHeaderLines(receiptText, width)
+            for (hLine in headerLines) {
+                assertLineCentered(hLine, width)
+            }
+
+            // Verify all footer lines after the minor separator under FULL PAID are centered across width
+            val allLines = receiptText.lines()
+            val fullPaidIdx = allLines.indexOfFirst { it.contains("FULL PAID") }
+            assertTrue("FULL PAID line must exist", fullPaidIdx >= 0)
+            val footerSepIdx = fullPaidIdx + 1
+            val endSepIdx = allLines.lastIndexOf("=".repeat(width))
+            assertTrue("Ending major separator must exist", endSepIdx > footerSepIdx)
+            val footerLines = allLines.subList(footerSepIdx + 1, endSepIdx).filter { it.isNotBlank() }
+            assertTrue("Footer lines must not be empty", footerLines.isNotEmpty())
+            for (fLine in footerLines) {
+                assertLineCentered(fLine, width)
+            }
+
+            // Verify ESC/POS payload does not prepend leading spaces to branch, address, phone, or footer lines while CMD_ALIGN_CENTER is active
+            val escPosBytes = EscPosPrinterEngine.buildFullEscPosReceipt(
+                header = header,
+                invoice = invoice,
+                lines = lines,
+                paperSize = paperSize,
+                autoCutter = true,
+                footerLine1 = "Thank you for shopping with us!",
+                footerLine2 = "Goods once sold cannot be returned without receipt",
+                logoBitmap = null,
+                isFullPaid = true
+            )
+            val escPosDecoded = String(escPosBytes, Charsets.UTF_8)
+            assertTrue(
+                "ESC/POS branch line must not have leading spaces under CMD_ALIGN_CENTER ($paperSize)",
+                escPosDecoded.contains("Uttara Branch (B-01)\n") && !escPosDecoded.contains(" Uttara Branch (B-01)\n")
+            )
+            assertTrue(
+                "ESC/POS phone line must not have leading spaces under CMD_ALIGN_CENTER ($paperSize)",
+                escPosDecoded.contains("\nPhone: 01700000000\n") && !escPosDecoded.contains(" Phone: 01700000000\n")
+            )
+            assertTrue(
+                "ESC/POS footer line must not have leading spaces under CMD_ALIGN_CENTER ($paperSize)",
+                escPosDecoded.contains("Thank you for shopping with us!\n") && !escPosDecoded.contains(" Thank you for shopping with us!\n")
+            )
+        }
+    }
 }

@@ -327,17 +327,32 @@ private fun parseReceiptForPreview(receiptText: String, configuredName: String?)
     val headerLines = lines.subList(firstSepIdx + 1, endHeaderIdx)
 
     if (cleanConfigName != null) {
-        val nameLines = cleanConfigName.lines().map { it.trim() }.filter { it.isNotBlank() }
+        val width = if (lines[firstSepIdx].trim().length >= 40) {
+            ThermalReceiptFormatter.WIDTH_80MM
+        } else {
+            ThermalReceiptFormatter.WIDTH_58MM
+        }
+        val expectedCompanyLines = cleanConfigName.lines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .flatMap { ThermalReceiptFormatter.wrapLinesForWidth(it, width) }
         var matchedCount = 0
         for (line in headerLines) {
             val t = line.trim()
-            if (nameLines.any { it.contains(t) || t.contains(it) }) {
+            if (t.isBlank()) continue
+            if (matchedCount < expectedCompanyLines.size &&
+                t.equals(expectedCompanyLines[matchedCount], ignoreCase = true)
+            ) {
                 matchedCount++
-            } else if (matchedCount > 0) {
+            } else {
                 break
             }
         }
-        val skipCount = maxOf(matchedCount, 1)
+        val skipCount = if (matchedCount > 0) {
+            matchedCount
+        } else {
+            minOf(expectedCompanyLines.size.coerceAtLeast(1), headerLines.size)
+        }
         val remaining = lines.subList(firstSepIdx + 1 + skipCount, lines.size).joinToString("\n")
         return cleanConfigName to remaining
     }
@@ -428,14 +443,12 @@ internal fun ReceiptFormattedBody(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (parsedSections.preTableText.isNotBlank()) {
-                    Text(
-                        text = parsedSections.preTableText.trimEnd(),
-                        modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = receiptFontSize,
-                        lineHeight = receiptLineHeight,
-                        softWrap = false,
-                        color = textColor
+                    ReceiptPreTableSection(
+                        preTableText = parsedSections.preTableText,
+                        receiptFontSize = receiptFontSize,
+                        receiptLineHeight = receiptLineHeight,
+                        textColor = textColor,
+                        separatorColor = separatorColor
                     )
                 }
 
@@ -454,7 +467,8 @@ internal fun ReceiptFormattedBody(
                         text = parsedSections.postTableText.trimStart('\n'),
                         receiptFontSize = receiptFontSize,
                         receiptLineHeight = receiptLineHeight,
-                        textColor = textColor
+                        textColor = textColor,
+                        separatorColor = separatorColor
                     )
                 }
             }
@@ -464,7 +478,87 @@ internal fun ReceiptFormattedBody(
             text = bodyText,
             receiptFontSize = receiptFontSize,
             receiptLineHeight = receiptLineHeight,
-            textColor = textColor
+            textColor = textColor,
+            separatorColor = separatorColor
+        )
+    }
+}
+
+@Composable
+private fun ReceiptPreTableSection(
+    preTableText: String,
+    receiptFontSize: TextUnit,
+    receiptLineHeight: TextUnit,
+    textColor: Color,
+    separatorColor: Color
+) {
+    val allLines = preTableText.trimEnd().lines()
+    val metadataLineIdx = allLines.indexOfFirst { line ->
+        val t = line.trim()
+        t.startsWith("Date:", ignoreCase = true) ||
+            t.startsWith("Order ID:", ignoreCase = true) ||
+            t.startsWith("Customer:", ignoreCase = true)
+    }
+    val headerEndIdx = if (metadataLineIdx != -1) {
+        if (metadataLineIdx > 0 && isMajorSeparatorLine(allLines[metadataLineIdx - 1])) {
+            metadataLineIdx - 1
+        } else {
+            metadataLineIdx
+        }
+    } else {
+        allLines.size
+    }
+
+    val headerRegionLines = allLines.subList(0, headerEndIdx)
+    val metadataRegionLines = allLines.subList(headerEndIdx, allLines.size)
+
+    if (headerRegionLines.isNotEmpty()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("voucher_header_details"),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            for (line in headerRegionLines) {
+                val trimmed = line.trim()
+                if (trimmed.isEmpty()) continue
+                if (isMajorSeparatorLine(trimmed) || isMinorSeparatorLine(trimmed)) {
+                    Text(
+                        text = trimmed,
+                        modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = receiptFontSize,
+                        lineHeight = receiptLineHeight,
+                        softWrap = false,
+                        color = separatorColor
+                    )
+                } else {
+                    Text(
+                        text = trimmed,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = receiptFontSize,
+                        lineHeight = receiptLineHeight,
+                        textAlign = TextAlign.Center,
+                        color = textColor
+                    )
+                }
+            }
+        }
+    }
+
+    val metadataText = metadataRegionLines.joinToString("\n").trimEnd()
+    if (metadataText.isNotBlank()) {
+        Text(
+            text = metadataText,
+            modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+            fontFamily = FontFamily.Monospace,
+            fontSize = receiptFontSize,
+            lineHeight = receiptLineHeight,
+            softWrap = false,
+            color = textColor
         )
     }
 }
@@ -474,19 +568,36 @@ private fun ReceiptBodyWithFullPaidBadge(
     text: String,
     receiptFontSize: TextUnit,
     receiptLineHeight: TextUnit,
-    textColor: Color
+    textColor: Color,
+    separatorColor: Color = textColor
 ) {
     val fullPaidMarker = "[✓] FULL PAID"
-    val hasFullPaidInBody = text.contains(fullPaidMarker)
+    val allLines = text.trimEnd().lines()
 
-    if (hasFullPaidInBody) {
-        val parts = text.split(fullPaidMarker)
-        val preText = parts.getOrNull(0) ?: ""
-        val postText = parts.getOrNull(1) ?: ""
+    val netPayableIdx = allLines.indexOfFirst {
+        it.trim().startsWith("NET PAYABLE", ignoreCase = true)
+    }
+    val fullPaidLineIdx = allLines.indexOfFirst {
+        it.contains(fullPaidMarker)
+    }
 
-        if (preText.isNotBlank()) {
+    val totalsEndSepIdx = when {
+        netPayableIdx != -1 -> {
+            ((netPayableIdx + 1) until allLines.size).firstOrNull { isMajorSeparatorLine(allLines[it]) }
+        }
+        fullPaidLineIdx != -1 -> {
+            (fullPaidLineIdx - 1 downTo 0).firstOrNull { isMajorSeparatorLine(allLines[it]) }
+        }
+        else -> null
+    }
+
+    if (totalsEndSepIdx != null) {
+        val totalsText = allLines.subList(0, totalsEndSepIdx + 1).joinToString("\n").trimEnd()
+        val footerRegionLines = allLines.subList(totalsEndSepIdx + 1, allLines.size)
+
+        if (totalsText.isNotBlank()) {
             Text(
-                text = preText.trimEnd(),
+                text = totalsText,
                 modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
                 fontFamily = FontFamily.Monospace,
                 fontSize = receiptFontSize,
@@ -496,41 +607,67 @@ private fun ReceiptBodyWithFullPaidBadge(
             )
         }
 
-        // Prominent Green Check/Tick & Full Paid Badge
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+                .testTag("voucher_footer_section"),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = Color(0xFF2E7D32),
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "Full Paid",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = Color(0xFF2E7D32)
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-
-        if (postText.isNotBlank()) {
-            Text(
-                text = postText.trimStart(),
-                modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
-                fontFamily = FontFamily.Monospace,
-                fontSize = receiptFontSize,
-                lineHeight = receiptLineHeight,
-                softWrap = false,
-                color = textColor
-            )
+            for (line in footerRegionLines) {
+                val trimmed = line.trim()
+                if (trimmed.isEmpty()) continue
+                when {
+                    trimmed.contains(fullPaidMarker) -> {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Full Paid",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF2E7D32)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    isMajorSeparatorLine(trimmed) || isMinorSeparatorLine(trimmed) -> {
+                        Text(
+                            text = trimmed,
+                            modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = receiptFontSize,
+                            lineHeight = receiptLineHeight,
+                            softWrap = false,
+                            color = separatorColor
+                        )
+                    }
+                    else -> {
+                        Text(
+                            text = trimmed,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = receiptFontSize,
+                            lineHeight = receiptLineHeight,
+                            textAlign = TextAlign.Center,
+                            color = textColor
+                        )
+                    }
+                }
+            }
         }
     } else {
         Text(
@@ -858,6 +995,11 @@ private val ROW_80MM_REGEX = Regex(
 private val ROW_80MM_NO_UNIT_REGEX = Regex(
     """^(.+?)\s+(\d+(?:\.\d*)?)\s{2,}(\d+(?:\.\d*)?)\s+(\d+(?:\.\d*)?)\s*$"""
 )
+
+private fun isMajorSeparatorLine(line: String): Boolean {
+    val trimmed = line.trim()
+    return trimmed.length >= 16 && trimmed.all { it == '=' }
+}
 
 private fun isMinorSeparatorLine(line: String): Boolean {
     val trimmed = line.trim()

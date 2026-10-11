@@ -438,21 +438,27 @@ object ThermalReceiptFormatter {
             "Branch #${header.branchNumber}"
         } else ""
         if (branchInfo.isNotBlank()) {
-            out.write(centerText(branchInfo, width).toByteArray(Charsets.UTF_8))
-            out.write(0x0A)
+            wrapLinesForWidth(branchInfo, width).forEach { line ->
+                out.write(line.toByteArray(Charsets.UTF_8))
+                out.write(0x0A)
+            }
         }
 
         val address = header?.address ?: ""
         if (address.isNotBlank()) {
-            out.write(centerText(address, width).toByteArray(Charsets.UTF_8))
-            out.write(0x0A)
+            wrapLinesForWidth(address, width).forEach { line ->
+                out.write(line.toByteArray(Charsets.UTF_8))
+                out.write(0x0A)
+            }
         }
 
         val phone = header?.phoneNumber ?: ""
         if (phone.isNotBlank()) {
             val phoneText = if (phone.startsWith("Phone") || phone.startsWith("ফোন")) phone else "Phone: $phone"
-            out.write(centerText(phoneText, width).toByteArray(Charsets.UTF_8))
-            out.write(0x0A)
+            wrapLinesForWidth(phoneText, width).forEach { line ->
+                out.write(line.toByteArray(Charsets.UTF_8))
+                out.write(0x0A)
+            }
         }
 
         // Separator
@@ -604,13 +610,13 @@ object ThermalReceiptFormatter {
         // Footer Notes (Centered)
         out.write(CMD_ALIGN_CENTER)
         if (footerLine1.isNotBlank()) {
-            footerLine1.lines().forEach { l ->
-                if (l.isNotBlank()) out.write("${centerText(l.trim(), width)}\n".toByteArray(Charsets.UTF_8))
+            wrapLinesForWidth(footerLine1, width).forEach { line ->
+                out.write("$line\n".toByteArray(Charsets.UTF_8))
             }
         }
         if (footerLine2.isNotBlank()) {
-            footerLine2.lines().forEach { l ->
-                if (l.isNotBlank()) out.write("${centerText(l.trim(), width)}\n".toByteArray(Charsets.UTF_8))
+            wrapLinesForWidth(footerLine2, width).forEach { line ->
+                out.write("$line\n".toByteArray(Charsets.UTF_8))
             }
         }
         out.write(sepMajor.toByteArray(Charsets.UTF_8))
@@ -807,8 +813,8 @@ object ThermalReceiptFormatter {
         return " ".repeat(maxOf(0, pad)) + trimmed
     }
 
-    fun centerText(text: String, width: Int): String {
-        if (text.isBlank()) return ""
+    fun wrapLinesForWidth(text: String, width: Int): List<String> {
+        if (text.isBlank()) return emptyList()
         val lines = mutableListOf<String>()
         val paragraphs = text.split("\n")
         for (para in paragraphs) {
@@ -816,38 +822,43 @@ object ThermalReceiptFormatter {
             if (words.isEmpty()) continue
             var currentLine = ""
             for (word in words) {
-                if (currentLine.isEmpty()) {
+                if (getVisualWidth(word) > width) {
+                    if (currentLine.isNotEmpty()) {
+                        lines.add(currentLine)
+                        currentLine = ""
+                    }
+                    var chunk = ""
+                    for (ch in word) {
+                        if (getVisualWidth(chunk + ch) > width && chunk.isNotEmpty()) {
+                            lines.add(chunk)
+                            chunk = ch.toString()
+                        } else {
+                            chunk += ch
+                        }
+                    }
+                    currentLine = chunk
+                } else if (currentLine.isEmpty()) {
                     currentLine = word
                 } else {
                     val candidate = "$currentLine $word"
                     if (getVisualWidth(candidate) <= width) {
                         currentLine = candidate
                     } else {
-                        lines.add(centerSingleLine(currentLine, width))
+                        lines.add(currentLine)
                         currentLine = word
                     }
                 }
             }
             if (currentLine.isNotEmpty()) {
-                if (getVisualWidth(currentLine) > width) {
-                    var chunk = ""
-                    for (ch in currentLine) {
-                        if (getVisualWidth(chunk + ch) > width) {
-                            lines.add(centerSingleLine(chunk, width))
-                            chunk = ch.toString()
-                        } else {
-                            chunk += ch
-                        }
-                    }
-                    if (chunk.isNotEmpty()) {
-                        lines.add(centerSingleLine(chunk, width))
-                    }
-                } else {
-                    lines.add(centerSingleLine(currentLine, width))
-                }
+                lines.add(currentLine)
             }
         }
-        return lines.joinToString("\n")
+        return lines
+    }
+
+    fun centerText(text: String, width: Int): String {
+        if (text.isBlank()) return ""
+        return wrapLinesForWidth(text, width).joinToString("\n") { centerSingleLine(it, width) }
     }
 
     fun wrapText(text: String, width: Int): List<String> {
