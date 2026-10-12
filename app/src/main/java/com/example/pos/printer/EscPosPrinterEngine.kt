@@ -3,6 +3,7 @@ package com.example.pos.printer
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import android.text.Layout
 import com.example.pos.core.util.CompanyLogoManager
 import com.example.pos.data.db.CompanyHeaderEntity
 import com.example.pos.data.db.InvoiceEntity
@@ -39,15 +40,48 @@ object EscPosPrinterEngine {
 
     /**
      * Converts plain text receipt to ESC/POS binary packet.
+     * When Bangla Unicode text is detected, lines containing Bangla are converted
+     * to ESC/POS monochrome raster data (GS v 0) to avoid garbled printer output.
      */
     fun buildEscPosBytes(
         receiptText: String,
-        autoCut: Boolean
+        autoCut: Boolean,
+        paperSize: String = "58mm"
     ): ByteArray {
         val out = java.io.ByteArrayOutputStream()
         out.write(ThermalReceiptFormatter.CMD_INIT)
         out.write(ThermalReceiptFormatter.CMD_ALIGN_LEFT)
-        out.write(receiptText.toByteArray(Charsets.UTF_8))
+
+        if (ThermalReceiptFormatter.containsBangla(receiptText)) {
+            val is80mm = paperSize.contains("80") || (receiptText.lines().firstOrNull()?.length ?: 32) >= 40
+            val widthDots = if (is80mm) ThermalReceiptFormatter.DOTS_80MM else ThermalReceiptFormatter.DOTS_58MM
+            val lines = receiptText.lines()
+            for ((index, line) in lines.withIndex()) {
+                if (ThermalReceiptFormatter.containsBangla(line)) {
+                    val trimmed = line.trim()
+                    val leadingSpaces = line.takeWhile { it == ' ' }.length
+                    val alignment = if (leadingSpaces >= 4) Layout.Alignment.ALIGN_CENTER else Layout.Alignment.ALIGN_NORMAL
+                    val isCompanyHeader = index in 0..4 && !line.contains("=") && leadingSpaces >= 4
+                    val raster = ThermalReceiptFormatter.renderTextToRaster(
+                        text = trimmed,
+                        widthDots = widthDots,
+                        textSizePx = if (isCompanyHeader) 30f else 22f,
+                        isBold = isCompanyHeader,
+                        alignment = alignment
+                    )
+                    if (raster != null) {
+                        out.write(raster)
+                    } else {
+                        out.write("$line\n".toByteArray(Charsets.UTF_8))
+                    }
+                } else {
+                    out.write("$line\n".toByteArray(Charsets.UTF_8))
+                }
+            }
+        } else {
+            out.write(receiptText.toByteArray(Charsets.UTF_8))
+        }
+
         out.write(ThermalReceiptFormatter.CMD_FEED_4)
         if (autoCut) {
             out.write(ThermalReceiptFormatter.CMD_CUT_PARTIAL)

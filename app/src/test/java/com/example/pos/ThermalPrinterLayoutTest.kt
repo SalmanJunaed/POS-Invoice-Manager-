@@ -4,9 +4,11 @@ import android.graphics.Bitmap
 import com.example.pos.data.db.CompanyHeaderEntity
 import com.example.pos.data.db.InvoiceEntity
 import com.example.pos.data.db.InvoiceLineEntity
+import com.example.pos.printer.EscPosPrinterEngine
 import com.example.pos.printer.ThermalReceiptFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -212,6 +214,196 @@ class ThermalPrinterLayoutTest {
         assertEquals(0.toByte(), rasterBytes[7])
         // Total size = 8 + (2 * 8) = 24 bytes
         assertEquals(24, rasterBytes.size)
+    }
+
+    @Test
+    fun testBanglaUnicodeDetection() {
+        assertTrue(ThermalReceiptFormatter.containsBangla("মেসার্স জামান স্টোর"))
+        assertTrue(ThermalReceiptFormatter.containsBangla("কেজি"))
+        assertTrue(ThermalReceiptFormatter.containsBangla("প্যাকেট"))
+        assertTrue(ThermalReceiptFormatter.containsBangla("১২.৫০"))
+        assertFalse(ThermalReceiptFormatter.containsBangla("Green Super Market"))
+        assertFalse(ThermalReceiptFormatter.containsBangla("12.50 BDT"))
+        assertFalse(ThermalReceiptFormatter.containsBangla("Item Name"))
+    }
+
+    @Test
+    fun testBanglaTextRasterRendering_58mmAnd80mm() {
+        val banglaHeader = "মেসার্স জামান ট্রেডার্স"
+        val raster58 = ThermalReceiptFormatter.renderTextToRaster(
+            text = banglaHeader,
+            widthDots = ThermalReceiptFormatter.DOTS_58MM,
+            textSizePx = 32f,
+            isBold = true,
+            alignment = android.text.Layout.Alignment.ALIGN_CENTER
+        )
+        assertNotNull("58mm raster must not be null", raster58)
+        assertTrue("58mm raster must start with GS v 0", raster58!!.size > 8)
+        assertEquals(0x1D.toByte(), raster58[0])
+        assertEquals(0x76.toByte(), raster58[1])
+        assertEquals(0x30.toByte(), raster58[2])
+        assertEquals(0x00.toByte(), raster58[3])
+        // Width for 58mm = 384 dots = 48 bytes
+        assertEquals((384 / 8).toByte(), raster58[4])
+        assertEquals(0.toByte(), raster58[5])
+
+        val raster80 = ThermalReceiptFormatter.renderTextToRaster(
+            text = banglaHeader,
+            widthDots = ThermalReceiptFormatter.DOTS_80MM,
+            textSizePx = 38f,
+            isBold = true,
+            alignment = android.text.Layout.Alignment.ALIGN_CENTER
+        )
+        assertNotNull("80mm raster must not be null", raster80)
+        assertTrue("80mm raster must start with GS v 0", raster80!!.size > 8)
+        // Width for 80mm = 576 dots = 72 bytes
+        assertEquals((576 / 8).toByte(), raster80[4])
+        assertEquals(0.toByte(), raster80[5])
+    }
+
+    @Test
+    fun testBanglaItemRowRasterRendering_58mmAnd80mm() {
+        val name = "সয়াবিন তেল ১ লিটার"
+        val qty = "২.৫"
+        val unit = "লিটার"
+        val rate = "190.00"
+        val total = "475.00"
+
+        val row58 = ThermalReceiptFormatter.render58mmItemRowToRaster(name, qty, unit, rate, total)
+        assertNotNull("58mm item raster must not be null", row58)
+        assertTrue("58mm item raster size must be > 8 bytes", row58!!.size > 8)
+        assertEquals(0x1D.toByte(), row58[0])
+        assertEquals(0x76.toByte(), row58[1])
+        assertEquals(0x30.toByte(), row58[2])
+        assertEquals(0x00.toByte(), row58[3])
+        assertEquals((ThermalReceiptFormatter.DOTS_58MM / 8).toByte(), row58[4])
+
+        val row80 = ThermalReceiptFormatter.render80mmItemRowToRaster(name, qty, unit, rate, total)
+        assertNotNull("80mm item raster must not be null", row80)
+        assertTrue("80mm item raster size must be > 8 bytes", row80!!.size > 8)
+        assertEquals(0x1D.toByte(), row80[0])
+        assertEquals(0x76.toByte(), row80[1])
+        assertEquals(0x30.toByte(), row80[2])
+        assertEquals(0x00.toByte(), row80[3])
+        assertEquals((ThermalReceiptFormatter.DOTS_80MM / 8).toByte(), row80[4])
+    }
+
+    @Test
+    fun testBanglaEscPosReceiptGeneration_58mmAnd80mm() {
+        val banglaHeader = CompanyHeaderEntity(
+            companyName = "মেসার্স জামান ট্রেডার্স",
+            branchName = "উত্তরা শাখা",
+            branchNumber = "০৪",
+            address = "সেক্টর ৩, উত্তরা, ঢাকা",
+            phoneNumber = "০১৭১২৩৪৫৬৭৮"
+        )
+        val banglaInvoice = InvoiceEntity(
+            orderId = "DH-2026-905",
+            dateTime = 1711188000000L,
+            operatorId = "OP-1",
+            operatorName = "কামাল হোসেন",
+            customerInfo = "রহিম মিয়া",
+            rawTotalPaisa = 47500L,
+            roundedTotalBdt = 475L,
+            footerNote = "ধন্যবাদ, আবার আসবেন!"
+        )
+        val banglaLines = listOf(
+            InvoiceLineEntity(
+                orderId = "DH-2026-905",
+                itemId = "ITM-BN-01",
+                itemName = "সয়াবিন তেল ১ লিটার",
+                itemType = "LIQUID",
+                unit = "বোতল",
+                quantityStr = "১",
+                unitPricePaisa = 19000L,
+                lineTotalPaisa = 19000L,
+                sortOrder = 1
+            ),
+            InvoiceLineEntity(
+                orderId = "DH-2026-905",
+                itemId = "ITM-BN-02",
+                itemName = "বাসমতী চাল প্রিমিয়াম",
+                itemType = "KILO",
+                unit = "কেজি",
+                quantityStr = "২",
+                unitPricePaisa = 14250L,
+                lineTotalPaisa = 28500L,
+                sortOrder = 2
+            )
+        )
+
+        // 58mm test
+        val bytes58 = ThermalReceiptFormatter.buildEscPosReceipt(
+            header = banglaHeader,
+            invoice = banglaInvoice,
+            lines = banglaLines,
+            paperSize = "58mm",
+            autoCutter = true,
+            footerLine1 = "ধন্যবাদ, আবার আসবেন!",
+            footerLine2 = "পণ্য ফেরত নেওয়ার ক্ষেত্রে রসিদ আবশ্যক"
+        )
+        assertTrue("58mm Bangla receipt must not be empty", bytes58.isNotEmpty())
+        assertEquals("Must start with ESC @", 0x1B.toByte(), bytes58[0])
+        assertEquals("Must start with ESC @", 0x40.toByte(), bytes58[1])
+
+        // Verify GS v 0 raster command is present in the stream
+        val gsV0 = byteArrayOf(0x1D, 0x76, 0x30, 0x00)
+        assertTrue("58mm receipt must contain GS v 0 raster commands for Bangla text", bytes58.toList().containsSubsequence(gsV0))
+
+        // Verify auto cutter command is present at the end
+        val cutCommand = byteArrayOf(0x1D, 0x56, 0x42, 0x00)
+        assertTrue("58mm receipt must contain auto cutter", bytes58.takeLast(10).containsSubsequence(cutCommand))
+
+        // 80mm test
+        val bytes80 = ThermalReceiptFormatter.buildEscPosReceipt(
+            header = banglaHeader,
+            invoice = banglaInvoice,
+            lines = banglaLines,
+            paperSize = "80mm",
+            autoCutter = false,
+            footerLine1 = "ধন্যবাদ, আবার আসবেন!",
+            footerLine2 = "পণ্য ফেরত নেওয়ার ক্ষেত্রে রসিদ আবশ্যক"
+        )
+        assertTrue("80mm Bangla receipt must not be empty", bytes80.isNotEmpty())
+        assertEquals(0x1B.toByte(), bytes80[0])
+        assertEquals(0x40.toByte(), bytes80[1])
+        assertTrue("80mm receipt must contain GS v 0 raster commands for Bangla text", bytes80.toList().containsSubsequence(gsV0))
+        assertFalse("80mm receipt with autoCutter=false must not contain cutter command", bytes80.takeLast(10).containsSubsequence(cutCommand))
+    }
+
+    @Test
+    fun testBuildEscPosBytesWithBanglaText() {
+        val receiptText = """
+            ================================
+                 মেসার্স জামান ট্রেডার্স
+                   উত্তরা শাখা (০৪)
+            ================================
+            Date: 23-Oct-2026 04:30PM
+            Order ID: #DH-2026-905
+            Operator: কামাল হোসেন
+            Customer: রহিম মিয়া
+            ================================
+            Item Name    Qty   Rate   Total
+            --------------------------------
+            সয়াবিন তেল ১ লিটার
+              ১.০ x ১৯০.০০        ১৯০.০০ BDT
+            --------------------------------
+            Sub Total:            190.00 BDT
+            TOTAL:                190 BDT
+            ================================
+                      [✓] FULL PAID
+            --------------------------------
+                ধন্যবাদ, আবার আসবেন!
+            ================================
+        """.trimIndent()
+
+        val bytes = EscPosPrinterEngine.buildEscPosBytes(receiptText, autoCut = true, paperSize = "58mm")
+        assertTrue("buildEscPosBytes must not be empty", bytes.isNotEmpty())
+        assertEquals(0x1B.toByte(), bytes[0])
+        assertEquals(0x40.toByte(), bytes[1])
+
+        val gsV0 = byteArrayOf(0x1D, 0x76, 0x30, 0x00)
+        assertTrue("buildEscPosBytes must rasterize Bangla lines using GS v 0", bytes.toList().containsSubsequence(gsV0))
     }
 
     private fun List<Byte>.containsSubsequence(sub: ByteArray): Boolean {

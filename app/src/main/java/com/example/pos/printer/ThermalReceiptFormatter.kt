@@ -1,7 +1,14 @@
 package com.example.pos.printer
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.os.Build
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import com.example.pos.data.db.CompanyHeaderEntity
 import com.example.pos.data.db.InvoiceEntity
 import com.example.pos.data.db.InvoiceLineEntity
@@ -399,6 +406,7 @@ object ThermalReceiptFormatter {
     ): ByteArray {
         val is80mm = paperSize.contains("80")
         val width = if (is80mm) WIDTH_80MM else WIDTH_58MM
+        val widthDots = if (is80mm) DOTS_80MM else DOTS_58MM
         val maxLogoDots = if (is80mm) 384 else 256
 
         val out = ByteArrayOutputStream()
@@ -418,19 +426,38 @@ object ThermalReceiptFormatter {
 
         // 3. Company Header (Centered, Bold, 3x Magnification)
         out.write(CMD_ALIGN_CENTER)
-        out.write(CMD_BOLD_ON)
-        out.write(CMD_TEXT_TRIPLE_SIZE)
         val rawCompanyName = header?.companyName?.ifBlank { "POS STATION" } ?: "POS STATION"
-        rawCompanyName.lines().forEach { line ->
-            if (line.isNotBlank()) {
-                out.write(line.trim().toByteArray(Charsets.UTF_8))
-                out.write(0x0A)
+        if (containsBangla(rawCompanyName)) {
+            val headerTextSize = if (is80mm) 38f else 32f
+            rawCompanyName.lines().forEach { line ->
+                if (line.isNotBlank()) {
+                    val raster = renderTextToRaster(
+                        text = line.trim(),
+                        widthDots = widthDots,
+                        textSizePx = headerTextSize,
+                        isBold = true,
+                        alignment = Layout.Alignment.ALIGN_CENTER
+                    )
+                    if (raster != null) {
+                        out.write(raster)
+                    } else {
+                        out.write(line.trim().toByteArray(Charsets.UTF_8))
+                        out.write(0x0A)
+                    }
+                }
             }
+        } else {
+            out.write(CMD_BOLD_ON)
+            out.write(CMD_TEXT_TRIPLE_SIZE)
+            rawCompanyName.lines().forEach { line ->
+                if (line.isNotBlank()) {
+                    out.write(line.trim().toByteArray(Charsets.UTF_8))
+                    out.write(0x0A)
+                }
+            }
+            out.write(CMD_TEXT_NORMAL)
+            out.write(CMD_BOLD_OFF)
         }
-
-        // Reset to normal size
-        out.write(CMD_TEXT_NORMAL)
-        out.write(CMD_BOLD_OFF)
 
         val branchInfo = if (!header?.branchName.isNullOrBlank()) {
             if (!header.branchNumber.isNullOrBlank()) "${header.branchName} (${header.branchNumber})" else header.branchName
@@ -438,26 +465,83 @@ object ThermalReceiptFormatter {
             "Branch #${header.branchNumber}"
         } else ""
         if (branchInfo.isNotBlank()) {
-            wrapLinesForWidth(branchInfo, width).forEach { line ->
-                out.write(line.toByteArray(Charsets.UTF_8))
-                out.write(0x0A)
+            if (containsBangla(branchInfo)) {
+                out.write(CMD_ALIGN_CENTER)
+                val raster = renderTextToRaster(
+                    text = branchInfo.trim(),
+                    widthDots = widthDots,
+                    textSizePx = 23f,
+                    isBold = false,
+                    alignment = Layout.Alignment.ALIGN_CENTER
+                )
+                if (raster != null) {
+                    out.write(raster)
+                } else {
+                    wrapLinesForWidth(branchInfo, width).forEach { line ->
+                        out.write(line.toByteArray(Charsets.UTF_8))
+                        out.write(0x0A)
+                    }
+                }
+            } else {
+                wrapLinesForWidth(branchInfo, width).forEach { line ->
+                    out.write(line.toByteArray(Charsets.UTF_8))
+                    out.write(0x0A)
+                }
             }
         }
 
         val address = header?.address ?: ""
         if (address.isNotBlank()) {
-            wrapLinesForWidth(address, width).forEach { line ->
-                out.write(line.toByteArray(Charsets.UTF_8))
-                out.write(0x0A)
+            if (containsBangla(address)) {
+                out.write(CMD_ALIGN_CENTER)
+                val raster = renderTextToRaster(
+                    text = address.trim(),
+                    widthDots = widthDots,
+                    textSizePx = 23f,
+                    isBold = false,
+                    alignment = Layout.Alignment.ALIGN_CENTER
+                )
+                if (raster != null) {
+                    out.write(raster)
+                } else {
+                    wrapLinesForWidth(address, width).forEach { line ->
+                        out.write(line.toByteArray(Charsets.UTF_8))
+                        out.write(0x0A)
+                    }
+                }
+            } else {
+                wrapLinesForWidth(address, width).forEach { line ->
+                    out.write(line.toByteArray(Charsets.UTF_8))
+                    out.write(0x0A)
+                }
             }
         }
 
         val phone = header?.phoneNumber ?: ""
         if (phone.isNotBlank()) {
             val phoneText = if (phone.startsWith("Phone") || phone.startsWith("ফোন")) phone else "Phone: $phone"
-            wrapLinesForWidth(phoneText, width).forEach { line ->
-                out.write(line.toByteArray(Charsets.UTF_8))
-                out.write(0x0A)
+            if (containsBangla(phoneText)) {
+                out.write(CMD_ALIGN_CENTER)
+                val raster = renderTextToRaster(
+                    text = phoneText.trim(),
+                    widthDots = widthDots,
+                    textSizePx = 23f,
+                    isBold = false,
+                    alignment = Layout.Alignment.ALIGN_CENTER
+                )
+                if (raster != null) {
+                    out.write(raster)
+                } else {
+                    wrapLinesForWidth(phoneText, width).forEach { line ->
+                        out.write(line.toByteArray(Charsets.UTF_8))
+                        out.write(0x0A)
+                    }
+                }
+            } else {
+                wrapLinesForWidth(phoneText, width).forEach { line ->
+                    out.write(line.toByteArray(Charsets.UTF_8))
+                    out.write(0x0A)
+                }
             }
         }
 
@@ -473,15 +557,68 @@ object ThermalReceiptFormatter {
         val dateStr = dateFormat.format(Date(invoice.dateTime))
 
         if (is80mm) {
-            out.write(padRow("Order ID: #${invoice.orderId}", "Date: $dateStr", width).toByteArray(Charsets.UTF_8))
-            out.write(0x0A)
-            out.write(padRow("Operator: ${invoice.operatorName.take(18)}", "Customer: ${invoice.customerInfo.take(18)}", width).toByteArray(Charsets.UTF_8))
-            out.write(0x0A)
+            val orderDateLine = padRow("Order ID: #${invoice.orderId}", "Date: $dateStr", width)
+            if (containsBangla(orderDateLine)) {
+                val raster = renderTextToRaster(orderDateLine, widthDots, textSizePx = 22f, alignment = Layout.Alignment.ALIGN_NORMAL)
+                if (raster != null) {
+                    out.write(raster)
+                } else {
+                    out.write(orderDateLine.toByteArray(Charsets.UTF_8))
+                    out.write(0x0A)
+                }
+            } else {
+                out.write(orderDateLine.toByteArray(Charsets.UTF_8))
+                out.write(0x0A)
+            }
+            val opCustLine = padRow("Operator: ${invoice.operatorName}", "Customer: ${invoice.customerInfo}", width)
+            if (containsBangla(opCustLine)) {
+                val raster = renderTextToRaster(opCustLine, widthDots, textSizePx = 22f, alignment = Layout.Alignment.ALIGN_NORMAL)
+                if (raster != null) {
+                    out.write(raster)
+                } else {
+                    out.write(opCustLine.toByteArray(Charsets.UTF_8))
+                    out.write(0x0A)
+                }
+            } else {
+                val opCustPadded = padRow("Operator: ${invoice.operatorName.take(18)}", "Customer: ${invoice.customerInfo.take(18)}", width)
+                out.write(opCustPadded.toByteArray(Charsets.UTF_8))
+                out.write(0x0A)
+            }
         } else {
             out.write("Date: $dateStr\n".toByteArray(Charsets.UTF_8))
-            out.write("Order ID: #${invoice.orderId}\n".toByteArray(Charsets.UTF_8))
-            out.write("Operator: ${invoice.operatorName.take(22)}\n".toByteArray(Charsets.UTF_8))
-            out.write("Customer: ${invoice.customerInfo.take(22)}\n".toByteArray(Charsets.UTF_8))
+            val orderLine = "Order ID: #${invoice.orderId}"
+            if (containsBangla(orderLine)) {
+                val raster = renderTextToRaster(orderLine, widthDots, textSizePx = 22f, alignment = Layout.Alignment.ALIGN_NORMAL)
+                if (raster != null) {
+                    out.write(raster)
+                } else {
+                    out.write("$orderLine\n".toByteArray(Charsets.UTF_8))
+                }
+            } else {
+                out.write("$orderLine\n".toByteArray(Charsets.UTF_8))
+            }
+            val opLine = if (containsBangla(invoice.operatorName)) "Operator: ${invoice.operatorName}" else "Operator: ${invoice.operatorName.take(22)}"
+            if (containsBangla(opLine)) {
+                val raster = renderTextToRaster(opLine, widthDots, textSizePx = 22f, alignment = Layout.Alignment.ALIGN_NORMAL)
+                if (raster != null) {
+                    out.write(raster)
+                } else {
+                    out.write("$opLine\n".toByteArray(Charsets.UTF_8))
+                }
+            } else {
+                out.write("$opLine\n".toByteArray(Charsets.UTF_8))
+            }
+            val custLine = if (containsBangla(invoice.customerInfo)) "Customer: ${invoice.customerInfo}" else "Customer: ${invoice.customerInfo.take(22)}"
+            if (containsBangla(custLine)) {
+                val raster = renderTextToRaster(custLine, widthDots, textSizePx = 22f, alignment = Layout.Alignment.ALIGN_NORMAL)
+                if (raster != null) {
+                    out.write(raster)
+                } else {
+                    out.write("$custLine\n".toByteArray(Charsets.UTF_8))
+                }
+            } else {
+                out.write("$custLine\n".toByteArray(Charsets.UTF_8))
+            }
         }
 
         // Separator
@@ -522,57 +659,32 @@ object ThermalReceiptFormatter {
         for (item in lines) {
             val name = item.itemName
             val qty = item.quantityStr
-            val unit = item.unit.take(4)
+            val unit = item.unit
             val rate = FinancialCalculationEngine.formatPaisaToBdt(item.unitPricePaisa)
             val total = FinancialCalculationEngine.formatPaisaToBdt(item.lineTotalPaisa)
+            val itemHasBangla = containsBangla(name) || containsBangla(unit) || containsBangla(qty) || containsBangla(rate) || containsBangla(total)
 
             if (is80mm) {
-                if (getVisualWidth(name) <= 18) {
-                    out.write(
-                        String.format(
-                            Locale.US,
-                            "%-18s %5s %-5s %8s %8s\n",
-                            name,
-                            qty.take(5),
-                            unit,
-                            rate.take(8),
-                            total.take(8)
-                        ).toByteArray(Charsets.UTF_8)
-                    )
-                } else {
-                    val nameLines = wrapText(name, 18)
-                    out.write(
-                        String.format(
-                            Locale.US,
-                            "%-18s %5s %-5s %8s %8s\n",
-                            nameLines.firstOrNull() ?: name,
-                            qty.take(5),
-                            unit,
-                            rate.take(8),
-                            total.take(8)
-                        ).toByteArray(Charsets.UTF_8)
-                    )
-                    for (i in 1 until nameLines.size) {
-                        out.write("${nameLines[i]}\n".toByteArray(Charsets.UTF_8))
+                if (itemHasBangla) {
+                    val raster = render80mmItemRowToRaster(name, qty, unit, rate, total, widthDots)
+                    if (raster != null) {
+                        out.write(raster)
+                    } else {
+                        out.write(format80mmNativeItemLine(name, qty, unit.take(4), rate, total).toByteArray(Charsets.UTF_8))
                     }
+                } else {
+                    out.write(format80mmNativeItemLine(name, qty, unit.take(4), rate, total).toByteArray(Charsets.UTF_8))
                 }
             } else {
-                if (getVisualWidth(name) <= 12) {
-                    out.write(
-                        String.format(
-                            Locale.US,
-                            "%-12s %4s %6s %7s\n",
-                            name,
-                            qty.take(4),
-                            rate.take(6),
-                            total.take(7)
-                        ).toByteArray(Charsets.UTF_8)
-                    )
+                if (itemHasBangla) {
+                    val raster = render58mmItemRowToRaster(name, qty, unit, rate, total, widthDots)
+                    if (raster != null) {
+                        out.write(raster)
+                    } else {
+                        out.write(format58mmNativeItemLine(name, qty, unit.take(4), rate, total, width).toByteArray(Charsets.UTF_8))
+                    }
                 } else {
-                    val wrapped = wrapText(name, width)
-                    wrapped.forEach { out.write("$it\n".toByteArray(Charsets.UTF_8)) }
-                    val detailLeft = "  ${qty}${unit} x ${rate}"
-                    out.write("${padRow(detailLeft, "$total BDT", width)}\n".toByteArray(Charsets.UTF_8))
+                    out.write(format58mmNativeItemLine(name, qty, unit.take(4), rate, total, width).toByteArray(Charsets.UTF_8))
                 }
             }
         }
@@ -583,15 +695,35 @@ object ThermalReceiptFormatter {
 
         // Subtotal
         val subtotalStr = "${FinancialCalculationEngine.formatPaisaToBdt(invoice.rawTotalPaisa)} BDT"
-        out.write("${padRow("Sub Total:", subtotalStr, width)}\n".toByteArray(Charsets.UTF_8))
+        val subtotalLine = padRow("Sub Total:", subtotalStr, width)
+        if (containsBangla(subtotalLine)) {
+            val raster = renderTextToRaster(subtotalLine, widthDots, textSizePx = 22f, isBold = false)
+            if (raster != null) {
+                out.write(raster)
+            } else {
+                out.write("$subtotalLine\n".toByteArray(Charsets.UTF_8))
+            }
+        } else {
+            out.write("$subtotalLine\n".toByteArray(Charsets.UTF_8))
+        }
 
         // Rounded Total (Bold, Double-Height)
-        out.write(CMD_BOLD_ON)
-        out.write(CMD_TEXT_DOUBLE_HEIGHT)
         val roundedStr = "${FinancialCalculationEngine.formatWholeBdtToDisplay(invoice.roundedTotalBdt)} BDT"
-        out.write("${padRow("TOTAL:", roundedStr, width)}\n".toByteArray(Charsets.UTF_8))
-        out.write(CMD_TEXT_NORMAL)
-        out.write(CMD_BOLD_OFF)
+        val totalLine = padRow("TOTAL:", roundedStr, width)
+        if (containsBangla(totalLine)) {
+            val raster = renderTextToRaster(totalLine, widthDots, textSizePx = 28f, isBold = true)
+            if (raster != null) {
+                out.write(raster)
+            } else {
+                out.write("$totalLine\n".toByteArray(Charsets.UTF_8))
+            }
+        } else {
+            out.write(CMD_BOLD_ON)
+            out.write(CMD_TEXT_DOUBLE_HEIGHT)
+            out.write("$totalLine\n".toByteArray(Charsets.UTF_8))
+            out.write(CMD_TEXT_NORMAL)
+            out.write(CMD_BOLD_OFF)
+        }
 
         // Separator
         out.write(sepMajor.toByteArray(Charsets.UTF_8))
@@ -610,13 +742,47 @@ object ThermalReceiptFormatter {
         // Footer Notes (Centered)
         out.write(CMD_ALIGN_CENTER)
         if (footerLine1.isNotBlank()) {
-            wrapLinesForWidth(footerLine1, width).forEach { line ->
-                out.write("$line\n".toByteArray(Charsets.UTF_8))
+            if (containsBangla(footerLine1)) {
+                val raster = renderTextToRaster(
+                    text = footerLine1.trim(),
+                    widthDots = widthDots,
+                    textSizePx = 23f,
+                    isBold = false,
+                    alignment = Layout.Alignment.ALIGN_CENTER
+                )
+                if (raster != null) {
+                    out.write(raster)
+                } else {
+                    wrapLinesForWidth(footerLine1, width).forEach { line ->
+                        out.write("$line\n".toByteArray(Charsets.UTF_8))
+                    }
+                }
+            } else {
+                wrapLinesForWidth(footerLine1, width).forEach { line ->
+                    out.write("$line\n".toByteArray(Charsets.UTF_8))
+                }
             }
         }
         if (footerLine2.isNotBlank()) {
-            wrapLinesForWidth(footerLine2, width).forEach { line ->
-                out.write("$line\n".toByteArray(Charsets.UTF_8))
+            if (containsBangla(footerLine2)) {
+                val raster = renderTextToRaster(
+                    text = footerLine2.trim(),
+                    widthDots = widthDots,
+                    textSizePx = 23f,
+                    isBold = false,
+                    alignment = Layout.Alignment.ALIGN_CENTER
+                )
+                if (raster != null) {
+                    out.write(raster)
+                } else {
+                    wrapLinesForWidth(footerLine2, width).forEach { line ->
+                        out.write("$line\n".toByteArray(Charsets.UTF_8))
+                    }
+                }
+            } else {
+                wrapLinesForWidth(footerLine2, width).forEach { line ->
+                    out.write("$line\n".toByteArray(Charsets.UTF_8))
+                }
             }
         }
         out.write(sepMajor.toByteArray(Charsets.UTF_8))
@@ -633,6 +799,62 @@ object ThermalReceiptFormatter {
         return out.toByteArray()
     }
 
+    private fun format80mmNativeItemLine(name: String, qty: String, unit: String, rate: String, total: String): String {
+        val sb = StringBuilder()
+        if (getVisualWidth(name) <= 18) {
+            sb.append(
+                String.format(
+                    Locale.US,
+                    "%-18s %5s %-5s %8s %8s\n",
+                    name,
+                    qty.take(5),
+                    unit,
+                    rate.take(8),
+                    total.take(8)
+                )
+            )
+        } else {
+            val nameLines = wrapText(name, 18)
+            sb.append(
+                String.format(
+                    Locale.US,
+                    "%-18s %5s %-5s %8s %8s\n",
+                    nameLines.firstOrNull() ?: name,
+                    qty.take(5),
+                    unit,
+                    rate.take(8),
+                    total.take(8)
+                )
+            )
+            for (i in 1 until nameLines.size) {
+                sb.append("${nameLines[i]}\n")
+            }
+        }
+        return sb.toString()
+    }
+
+    private fun format58mmNativeItemLine(name: String, qty: String, unit: String, rate: String, total: String, width: Int): String {
+        val sb = StringBuilder()
+        if (getVisualWidth(name) <= 12) {
+            sb.append(
+                String.format(
+                    Locale.US,
+                    "%-12s %4s %6s %7s\n",
+                    name,
+                    qty.take(4),
+                    rate.take(6),
+                    total.take(7)
+                )
+            )
+        } else {
+            val wrapped = wrapText(name, width)
+            wrapped.forEach { sb.append("$it\n") }
+            val detailLeft = "  ${qty}${unit} x ${rate}"
+            sb.append("${padRow(detailLeft, "$total BDT", width)}\n")
+        }
+        return sb.toString()
+    }
+
     /**
      * Builds ESC/POS bytes for a hardware test slip.
      */
@@ -643,6 +865,7 @@ object ThermalReceiptFormatter {
     ): ByteArray {
         val is80mm = paperSize.contains("80")
         val width = if (is80mm) WIDTH_80MM else WIDTH_58MM
+        val widthDots = if (is80mm) DOTS_80MM else DOTS_58MM
         val out = ByteArrayOutputStream()
 
         out.write(CMD_INIT)
@@ -657,7 +880,18 @@ object ThermalReceiptFormatter {
 
         out.write(CMD_BOLD_ON)
         val name = companyName ?: "POS Station"
-        out.write("$name\n".toByteArray(Charsets.UTF_8))
+        if (containsBangla(name)) {
+            val raster = renderTextToRaster(
+                text = name,
+                widthDots = widthDots,
+                textSizePx = 28f,
+                isBold = true,
+                alignment = Layout.Alignment.ALIGN_CENTER
+            )
+            raster?.let { out.write(it) }
+        } else {
+            out.write("$name\n".toByteArray(Charsets.UTF_8))
+        }
         out.write(CMD_BOLD_OFF)
 
         out.write(CMD_ALIGN_LEFT)
@@ -766,6 +1000,189 @@ object ThermalReceiptFormatter {
             }
             out.toByteArray()
         } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Checks if a string contains any Bengali Unicode character (\u0980..\u09FF).
+     */
+    fun containsBangla(text: String): Boolean {
+        return text.any { it in '\u0980'..'\u09FF' }
+    }
+
+    /**
+     * Renders a text string into an ESC/POS monochrome raster command (GS v 0)
+     * using Android's native StaticLayout and TextPaint.
+     * This guarantees HarfBuzz complex text shaping for Bengali conjuncts, ligatures,
+     * vowel signs, and numbers without splitting or reordering characters manually.
+     */
+    fun renderTextToRaster(
+        text: String,
+        widthDots: Int,
+        textSizePx: Float = 24f,
+        isBold: Boolean = false,
+        alignment: Layout.Alignment = Layout.Alignment.ALIGN_NORMAL
+    ): ByteArray? {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return null
+
+        return try {
+            val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK
+                textSize = textSizePx
+                typeface = if (isBold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            }
+
+            val staticLayout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                StaticLayout.Builder.obtain(trimmed, 0, trimmed.length, textPaint, widthDots)
+                    .setAlignment(alignment)
+                    .setLineSpacing(2f, 1.1f)
+                    .setIncludePad(true)
+                    .build()
+            } else {
+                @Suppress("DEPRECATION")
+                StaticLayout(trimmed, textPaint, widthDots, alignment, 1.1f, 2f, true)
+            }
+
+            val height = staticLayout.height.coerceAtLeast(1)
+            val bitmap = Bitmap.createBitmap(widthDots, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(Color.WHITE)
+            staticLayout.draw(canvas)
+
+            bitmapToEscPosRaster(bitmap, widthDots)
+        } catch (t: Throwable) {
+            null
+        }
+    }
+
+    /**
+     * Renders a 5-column 80mm item line containing Bangla characters to ESC/POS raster.
+     * Columns: Item Description (up to 240 dots), Qty, Unit, Rate, Total.
+     */
+    fun render80mmItemRowToRaster(
+        name: String,
+        qty: String,
+        unit: String,
+        rate: String,
+        total: String,
+        widthDots: Int = DOTS_80MM
+    ): ByteArray? {
+        return try {
+            val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK
+                textSize = 21f
+                typeface = Typeface.DEFAULT
+            }
+
+            // Column 1: Item description (up to 240 dots)
+            val nameWidth = 240
+            val nameLayout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                StaticLayout.Builder.obtain(name, 0, name.length, textPaint, nameWidth)
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .setLineSpacing(0f, 1.1f)
+                    .setIncludePad(true)
+                    .build()
+            } else {
+                @Suppress("DEPRECATION")
+                StaticLayout(name, textPaint, nameWidth, Layout.Alignment.ALIGN_NORMAL, 1.1f, 0f, true)
+            }
+
+            val rowHeight = maxOf(nameLayout.height, 28) + 4
+            val bitmap = Bitmap.createBitmap(widthDots, rowHeight, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(Color.WHITE)
+
+            // Draw name
+            canvas.save()
+            canvas.translate(2f, 2f)
+            nameLayout.draw(canvas)
+            canvas.restore()
+
+            // Baseline for columns on the first line
+            val baseline = 22f
+
+            // Draw Qty (right-aligned at 305)
+            textPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText(qty, 305f, baseline, textPaint)
+
+            // Draw Unit (left-aligned at 318)
+            textPaint.textAlign = Paint.Align.LEFT
+            canvas.drawText(unit, 318f, baseline, textPaint)
+
+            // Draw Rate (right-aligned at 460)
+            textPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText(rate, 460f, baseline, textPaint)
+
+            // Draw Total (right-aligned at 572)
+            textPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText(total, 572f, baseline, textPaint)
+
+            bitmapToEscPosRaster(bitmap, widthDots)
+        } catch (t: Throwable) {
+            null
+        }
+    }
+
+    /**
+     * Renders a 58mm item line containing Bangla characters to ESC/POS raster.
+     * Line 1: Item Name (full width up to 384 dots)
+     * Line 2: Details: "  ${qty}${unit} x ${rate}        ${total} BDT"
+     */
+    fun render58mmItemRowToRaster(
+        name: String,
+        qty: String,
+        unit: String,
+        rate: String,
+        total: String,
+        widthDots: Int = DOTS_58MM
+    ): ByteArray? {
+        return try {
+            val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK
+                textSize = 21f
+                typeface = Typeface.DEFAULT
+            }
+
+            // Line 1: Item Name (full width up to 384 dots)
+            val nameWidth = widthDots - 8
+            val nameLayout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                StaticLayout.Builder.obtain(name, 0, name.length, textPaint, nameWidth)
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .setLineSpacing(0f, 1.1f)
+                    .setIncludePad(true)
+                    .build()
+            } else {
+                @Suppress("DEPRECATION")
+                StaticLayout(name, textPaint, nameWidth, Layout.Alignment.ALIGN_NORMAL, 1.1f, 0f, true)
+            }
+
+            val line2Height = 26
+            val rowHeight = nameLayout.height + line2Height + 4
+            val bitmap = Bitmap.createBitmap(widthDots, rowHeight, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(Color.WHITE)
+
+            // Draw name
+            canvas.save()
+            canvas.translate(4f, 2f)
+            nameLayout.draw(canvas)
+            canvas.restore()
+
+            // Draw details line: "  ${qty}${unit} x ${rate}        ${total} BDT"
+            val line2Baseline = nameLayout.height + 20f
+            val detailLeft = "  ${qty}${unit} x $rate"
+            val totalRight = "$total BDT"
+
+            textPaint.textAlign = Paint.Align.LEFT
+            canvas.drawText(detailLeft, 4f, line2Baseline, textPaint)
+
+            textPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText(totalRight, (widthDots - 4).toFloat(), line2Baseline, textPaint)
+
+            bitmapToEscPosRaster(bitmap, widthDots)
+        } catch (t: Throwable) {
             null
         }
     }
