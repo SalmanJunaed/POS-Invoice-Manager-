@@ -17,14 +17,13 @@ import kotlin.math.abs
 class VoucherHeaderCenteringTest {
 
     private fun extractHeaderLines(receipt: String, width: Int): List<String> {
-        val sep = "=".repeat(width)
         val lines = receipt.lines()
-        val firstSepIdx = lines.indexOfFirst { it.trim() == sep }
-        assertTrue("First separator must exist", firstSepIdx >= 0)
-        val secondSepIdx = lines.drop(firstSepIdx + 1).indexOfFirst { it.trim() == sep }
-        assertTrue("Second separator must exist", secondSepIdx >= 0)
-        val actualSecondSepIdx = firstSepIdx + 1 + secondSepIdx
-        return lines.subList(firstSepIdx + 1, actualSecondSepIdx).filter { it.isNotBlank() }
+        val metaOrSepIdx = lines.indexOfFirst { line ->
+            val t = line.trim()
+            t.startsWith("-") || t.startsWith("=") || t.startsWith("Date:") || t.startsWith("Order ID:")
+        }
+        val endIdx = if (metaOrSepIdx != -1) metaOrSepIdx else lines.size
+        return lines.subList(0, endIdx).filter { it.isNotBlank() }
     }
 
     private fun assertLineCentered(line: String, width: Int, tolerance: Int = 2) {
@@ -291,14 +290,11 @@ class VoucherHeaderCenteringTest {
                 assertLineCentered(hLine, width)
             }
 
-            // Verify all footer lines after the minor separator under FULL PAID are centered across width
+            // Verify all footer lines after FULL PAID are centered across width
             val allLines = receiptText.lines()
             val fullPaidIdx = allLines.indexOfFirst { it.contains("FULL PAID") }
             assertTrue("FULL PAID line must exist", fullPaidIdx >= 0)
-            val footerSepIdx = fullPaidIdx + 1
-            val endSepIdx = allLines.lastIndexOf("=".repeat(width))
-            assertTrue("Ending major separator must exist", endSepIdx > footerSepIdx)
-            val footerLines = allLines.subList(footerSepIdx + 1, endSepIdx).filter { it.isNotBlank() }
+            val footerLines = allLines.subList(fullPaidIdx + 1, allLines.size).filter { it.isNotBlank() }
             assertTrue("Footer lines must not be empty", footerLines.isNotEmpty())
             for (fLine in footerLines) {
                 assertLineCentered(fLine, width)

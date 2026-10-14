@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.pos.domain.FinancialCalculationEngine
@@ -164,7 +166,6 @@ fun PosAnalyticsBarChart(
     val maxValue = dataPoints.maxOfOrNull { it.value } ?: 1L
     val safeMax = if (maxValue <= 0L) 1L else maxValue
 
-    val isDense = dataPoints.size > 14
     val scrollState = rememberScrollState()
 
     Card(
@@ -186,15 +187,18 @@ fun PosAnalyticsBarChart(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = metricTitle,
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = if (isCurrency) "Max Peak: ${FinancialCalculationEngine.formatWholeBdtToDisplay(safeMax)} ৳" else "Max Peak: $safeMax orders",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -202,6 +206,7 @@ fun PosAnalyticsBarChart(
                 // Interactive Inspector Pill
                 val activePoint = selectedIndex?.let { if (it in dataPoints.indices) dataPoints[it] else null }
                 if (activePoint != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = primaryColor.copy(alpha = 0.15f),
@@ -214,134 +219,161 @@ fun PosAnalyticsBarChart(
                             Text(
                                 text = "${activePoint.label}: ",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = primaryColor
+                                color = primaryColor,
+                                maxLines = 1
                             )
                             Text(
                                 text = if (isCurrency) "${FinancialCalculationEngine.formatWholeBdtToDisplay(activePoint.value)} ৳" else "${activePoint.value}",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
-                                color = primaryColor
+                                color = primaryColor,
+                                maxLines = 1
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Chart Canvas area with Y-axis scale lines
+            // Chart Canvas area with Y-axis scale lines and responsive layout
             val chartHeightDp = 160.dp
-            val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
 
-            Box(modifier = Modifier.fillMaxWidth()) {
-                // Background Y-Axis Reference Guidelines (0%, 33%, 66%, 100%)
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(chartHeightDp)
-                ) {
-                    val steps = 3
-                    val stepHeight = size.height / steps
-                    val pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val availableWidth = maxWidth
+                // Each bar column slot needs at least 46.dp to comfortably show labels like "15 Jan" or "জানু ২০২৪"
+                val minSlotWidth = 46.dp
+                val requiredWidth = minSlotWidth * dataPoints.size
+                val isScrollable = requiredWidth > availableWidth
 
-                    for (i in 0..steps) {
-                        val y = i * stepHeight
-                        drawLine(
-                            color = gridColor,
-                            start = Offset(0f, y),
-                            end = Offset(size.width, y),
-                            strokeWidth = 1f,
-                            pathEffect = pathEffect
+                val slotWidth = if (isScrollable) {
+                    50.dp
+                } else {
+                    (availableWidth / dataPoints.size).coerceIn(46.dp, 84.dp)
+                }
+                val barWidth = (slotWidth * 0.52f).coerceIn(20.dp, 44.dp)
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        // Background Y-Axis Reference Guidelines (0%, 33%, 66%, 100%)
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(chartHeightDp)
+                        ) {
+                            val steps = 3
+                            val stepHeight = size.height / steps
+                            val pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+
+                            for (i in 0..steps) {
+                                val y = i * stepHeight
+                                drawLine(
+                                    color = gridColor,
+                                    start = Offset(0f, y),
+                                    end = Offset(size.width, y),
+                                    strokeWidth = 1f,
+                                    pathEffect = pathEffect
+                                )
+                            }
+                        }
+
+                        // Foreground Scrollable or Centered Bars
+                        val rowModifier = if (isScrollable) {
+                            Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(scrollState)
+                        } else {
+                            Modifier.fillMaxWidth()
+                        }
+
+                        Row(
+                            modifier = rowModifier
+                                .height(chartHeightDp + 36.dp)
+                                .padding(horizontal = 4.dp),
+                            horizontalArrangement = if (isScrollable) Arrangement.spacedBy(6.dp) else Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            dataPoints.forEachIndexed { index, point ->
+                                val isSelected = selectedIndex == index
+                                val fraction = (point.value.toFloat() / safeMax.toFloat()).coerceIn(0.04f, 1f)
+
+                                Column(
+                                    modifier = Modifier
+                                        .width(slotWidth)
+                                        .clickable {
+                                            selectedIndex = if (selectedIndex == index) null else index
+                                        }
+                                        .testTag("chart_bar_$index"),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Bottom
+                                ) {
+                                    // Top value indicator when selected (fixed reserved height so baseline doesn't jump)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(16.dp),
+                                        contentAlignment = Alignment.BottomCenter
+                                    ) {
+                                        if (isSelected) {
+                                            Text(
+                                                text = if (isCurrency) "${point.value}" else "${point.value}",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                                color = primaryColor,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
+
+                                    // The Bar
+                                    Box(
+                                        modifier = Modifier
+                                            .width(barWidth)
+                                            .height(((chartHeightDp.value - 20f) * fraction).coerceAtLeast(6f).dp)
+                                            .background(
+                                                brush = if (isSelected) {
+                                                    Brush.verticalGradient(
+                                                        listOf(secondaryColor, primaryColor)
+                                                    )
+                                                } else {
+                                                    Brush.verticalGradient(
+                                                        listOf(primaryColor, primaryColor.copy(alpha = 0.75f))
+                                                    )
+                                                },
+                                                shape = RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)
+                                            )
+                                    )
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    // X-Axis Period Label
+                                    Text(
+                                        text = point.label,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 10.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        ),
+                                        color = if (isSelected) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (isScrollable) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "← Scroll horizontally to inspect all periods →",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
                         )
                     }
                 }
-
-                // Foreground Scrollable or Centered Bars
-                val rowModifier = if (isDense) {
-                    Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(scrollState)
-                } else {
-                    Modifier.fillMaxWidth()
-                }
-
-                Row(
-                    modifier = rowModifier
-                        .height(chartHeightDp + 26.dp)
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement = if (isDense) Arrangement.spacedBy(8.dp) else Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    val barWidthDp = if (isDense) 28.dp else (320.dp / (dataPoints.size + 1)).coerceIn(24.dp, 48.dp)
-
-                    dataPoints.forEachIndexed { index, point ->
-                        val isSelected = selectedIndex == index
-                        val fraction = (point.value.toFloat() / safeMax.toFloat()).coerceIn(0.04f, 1f)
-
-                        Column(
-                            modifier = Modifier
-                                .width(barWidthDp)
-                                .clickable {
-                                    selectedIndex = if (selectedIndex == index) null else index
-                                }
-                                .testTag("chart_bar_$index"),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Bottom
-                        ) {
-                            // Top value indicator when selected or high peak
-                            if (isSelected) {
-                                Text(
-                                    text = if (isCurrency) "${point.value}" else "${point.value}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                    color = primaryColor,
-                                    maxLines = 1
-                                )
-                            }
-
-                            // The Bar
-                            Box(
-                                modifier = Modifier
-                                    .width(barWidthDp - 4.dp)
-                                    .height((chartHeightDp.value * fraction).dp)
-                                    .background(
-                                        brush = if (isSelected) {
-                                            Brush.verticalGradient(
-                                                listOf(secondaryColor, primaryColor)
-                                            )
-                                        } else {
-                                            Brush.verticalGradient(
-                                                listOf(primaryColor, primaryColor.copy(alpha = 0.75f))
-                                            )
-                                        },
-                                        shape = RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)
-                                    )
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            // X-Axis Period Label
-                            Text(
-                                text = point.label,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 9.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                ),
-                                color = if (isSelected) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                }
-            }
-
-            if (isDense) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "← Scroll horizontally to inspect all periods →",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
             }
         }
     }

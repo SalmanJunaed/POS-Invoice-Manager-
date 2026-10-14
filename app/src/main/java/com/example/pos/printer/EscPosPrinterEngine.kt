@@ -52,21 +52,24 @@ object EscPosPrinterEngine {
         out.write(ThermalReceiptFormatter.CMD_INIT)
         out.write(ThermalReceiptFormatter.CMD_ALIGN_LEFT)
 
-        if (ThermalReceiptFormatter.containsBangla(receiptText)) {
+        if (ThermalReceiptFormatter.containsBangla(receiptText) || receiptText.contains("✓")) {
             val is80mm = paperSize.contains("80") || (receiptText.lines().firstOrNull()?.length ?: 32) >= 40
             val widthDots = if (is80mm) ThermalReceiptFormatter.DOTS_80MM else ThermalReceiptFormatter.DOTS_58MM
             val lines = receiptText.lines()
             for ((index, line) in lines.withIndex()) {
-                if (ThermalReceiptFormatter.containsBangla(line)) {
+                val hasBangla = ThermalReceiptFormatter.containsBangla(line)
+                val hasTick = line.contains("✓")
+                if (hasBangla || hasTick) {
                     val trimmed = line.trim()
                     val leadingSpaces = line.takeWhile { it == ' ' }.length
-                    val alignment = if (leadingSpaces >= 4) Layout.Alignment.ALIGN_CENTER else Layout.Alignment.ALIGN_NORMAL
-                    val isCompanyHeader = index in 0..4 && !line.contains("=") && leadingSpaces >= 4
+                    val isFullPaid = line.contains("FULL PAID") || hasTick
+                    val isCompanyHeader = index in 0..4 && !line.contains("=") && !line.contains("-") && leadingSpaces >= 4
+                    val alignment = if (isFullPaid || leadingSpaces >= 4) Layout.Alignment.ALIGN_CENTER else Layout.Alignment.ALIGN_NORMAL
                     val raster = ThermalReceiptFormatter.renderTextToRaster(
                         text = trimmed,
                         widthDots = widthDots,
-                        textSizePx = if (isCompanyHeader) 30f else 22f,
-                        isBold = isCompanyHeader,
+                        textSizePx = if (isCompanyHeader) 30f else if (isFullPaid) 24f else 22f,
+                        isBold = isCompanyHeader || isFullPaid,
                         alignment = alignment
                     )
                     if (raster != null) {

@@ -100,11 +100,7 @@ object ThermalReceiptFormatter {
     ): String {
         val width = WIDTH_58MM
         val sb = StringBuilder()
-        val sepMajor = "=".repeat(width)
-        val sepMinor = "-".repeat(width)
-
-        // Top border separator
-        sb.appendLine(sepMajor)
+        val sepStraight = "-".repeat(width)
 
         // 1. Company Name (Preserves line breaks and center-aligns every line dynamically)
         val rawCompanyName = header?.companyName?.ifBlank { "POS STATION" } ?: "POS STATION"
@@ -136,9 +132,6 @@ object ThermalReceiptFormatter {
             sb.appendLine(centerText(phoneText, width))
         }
 
-        // 5. Separator
-        sb.appendLine(sepMajor)
-
         // 6. Date/Time
         val dateFormat = SimpleDateFormat("dd-MMM-yyyy hh:mma", Locale.US)
         val dateStr = dateFormat.format(Date(invoice.dateTime))
@@ -153,13 +146,15 @@ object ThermalReceiptFormatter {
         // 9. Customer
         sb.appendLine("Customer: ${invoice.customerInfo.take(22)}")
 
-        // 10. Separator
-        sb.appendLine(sepMajor)
+        // STRAIGHT SEPARATOR 1 (Between metadata and item table header)
+        sb.appendLine(sepStraight)
 
         // 11. Item Header (58mm - 32 columns)
         // Format: Item Name (12) + Qty (4) + Rate (6) + Total (7) + 3 spaces = 32
         sb.appendLine(String.format(Locale.US, "%-12s %4s %6s %7s", "Item Name", "Qty", "Rate", "Total"))
-        sb.appendLine(sepMinor)
+
+        // STRAIGHT SEPARATOR 2 (Between item table header and item rows)
+        sb.appendLine(sepStraight)
 
         // 12. Items
         for (item in lines) {
@@ -188,8 +183,8 @@ object ThermalReceiptFormatter {
             }
         }
 
-        // 13. Separator
-        sb.appendLine(sepMinor)
+        // STRAIGHT SEPARATOR 3 (Between item rows and Subtotal)
+        sb.appendLine(sepStraight)
 
         // 14. Subtotal
         val subtotalStr = "${FinancialCalculationEngine.formatPaisaToBdt(invoice.rawTotalPaisa)} BDT"
@@ -199,13 +194,9 @@ object ThermalReceiptFormatter {
         val roundedStr = "${FinancialCalculationEngine.formatWholeBdtToDisplay(invoice.roundedTotalBdt)} BDT"
         sb.appendLine(padRow("TOTAL:", roundedStr, width))
 
-        // 16. Separator
-        sb.appendLine(sepMajor)
-
         // Full Paid status (after invoice content and BEFORE Footer Note)
         if (isFullPaid) {
-            sb.appendLine(centerText("[✓] FULL PAID", width))
-            sb.appendLine(sepMinor)
+            sb.appendLine(centerText("FULL PAID ✓", width))
         }
 
         // 17. Footer notes
@@ -219,9 +210,6 @@ object ThermalReceiptFormatter {
                 if (l.isNotBlank()) sb.appendLine(centerText(l.trim(), width))
             }
         }
-
-        // 18. Ending separator
-        sb.appendLine(sepMajor)
 
         return sb.toString()
     }
@@ -240,11 +228,7 @@ object ThermalReceiptFormatter {
     ): String {
         val width = WIDTH_80MM
         val sb = StringBuilder()
-        val sepMajor = "=".repeat(width)
-        val sepMinor = "-".repeat(width)
-
-        // Top border separator
-        sb.appendLine(sepMajor)
+        val sepStraight = "-".repeat(width)
 
         // 1. Company Name (Preserves line breaks and center-aligns every line dynamically)
         val rawCompanyName = header?.companyName?.ifBlank { "POS & INVOICE STATION" } ?: "POS & INVOICE STATION"
@@ -276,9 +260,6 @@ object ThermalReceiptFormatter {
             sb.appendLine(centerText(phoneText, width))
         }
 
-        // 5. Separator
-        sb.appendLine(sepMajor)
-
         // 6 & 7. Order ID and Date/Time (Side by side on 80mm)
         val dateFormat = SimpleDateFormat("dd-MMM-yyyy hh:mma", Locale.US)
         val dateStr = dateFormat.format(Date(invoice.dateTime))
@@ -291,8 +272,8 @@ object ThermalReceiptFormatter {
         val custText = "Customer: ${invoice.customerInfo.take(18)}"
         sb.appendLine(padRow(opText, custText, width))
 
-        // 10. Separator
-        sb.appendLine(sepMajor)
+        // STRAIGHT SEPARATOR 1 (Between metadata and item table header)
+        sb.appendLine(sepStraight)
 
         // 11. Item Header (80mm - 48 columns)
         // Columns: Item Description (18) + Qty (5) + Unit (5) + Rate (8) + Total (8) + 4 spaces = 48
@@ -307,7 +288,9 @@ object ThermalReceiptFormatter {
                 "Total"
             )
         )
-        sb.appendLine(sepMinor)
+
+        // STRAIGHT SEPARATOR 2 (Between item table header and item rows)
+        sb.appendLine(sepStraight)
 
         // 12. Items
         for (item in lines) {
@@ -351,8 +334,8 @@ object ThermalReceiptFormatter {
             }
         }
 
-        // 13. Separator
-        sb.appendLine(sepMinor)
+        // STRAIGHT SEPARATOR 3 (Between item rows and Subtotal)
+        sb.appendLine(sepStraight)
 
         // 14. Subtotal
         val subtotalStr = "${FinancialCalculationEngine.formatPaisaToBdt(invoice.rawTotalPaisa)} BDT"
@@ -362,13 +345,9 @@ object ThermalReceiptFormatter {
         val roundedStr = "${FinancialCalculationEngine.formatWholeBdtToDisplay(invoice.roundedTotalBdt)} BDT"
         sb.appendLine(padRow("NET PAYABLE (Rounded):", roundedStr, width))
 
-        // 16. Separator
-        sb.appendLine(sepMajor)
-
         // Full Paid status (after invoice content and BEFORE Footer Note)
         if (isFullPaid) {
-            sb.appendLine(centerText("[✓] FULL PAID", width))
-            sb.appendLine(sepMinor)
+            sb.appendLine(centerText("FULL PAID ✓", width))
         }
 
         // 17. Footer notes
@@ -382,9 +361,6 @@ object ThermalReceiptFormatter {
                 if (l.isNotBlank()) sb.appendLine(centerText(l.trim(), width))
             }
         }
-
-        // 18. Ending separator
-        sb.appendLine(sepMajor)
 
         return sb.toString()
     }
@@ -545,12 +521,6 @@ object ThermalReceiptFormatter {
             }
         }
 
-        // Separator
-        val sepMajor = "=".repeat(width)
-        val sepMinor = "-".repeat(width)
-        out.write(sepMajor.toByteArray(Charsets.UTF_8))
-        out.write(0x0A)
-
         // Metadata section (Left aligned)
         out.write(CMD_ALIGN_LEFT)
         val dateFormat = SimpleDateFormat("dd-MMM-yyyy hh:mma", Locale.US)
@@ -621,8 +591,9 @@ object ThermalReceiptFormatter {
             }
         }
 
-        // Separator
-        out.write(sepMajor.toByteArray(Charsets.UTF_8))
+        // STRAIGHT SEPARATOR 1 (Between metadata and item table header)
+        val sepStraight = "-".repeat(width)
+        out.write(sepStraight.toByteArray(Charsets.UTF_8))
         out.write(0x0A)
 
         // Table Header
@@ -652,7 +623,9 @@ object ThermalReceiptFormatter {
             )
         }
         out.write(CMD_BOLD_OFF)
-        out.write(sepMinor.toByteArray(Charsets.UTF_8))
+
+        // STRAIGHT SEPARATOR 2 (Between item table header and item rows)
+        out.write(sepStraight.toByteArray(Charsets.UTF_8))
         out.write(0x0A)
 
         // Line Items
@@ -689,8 +662,8 @@ object ThermalReceiptFormatter {
             }
         }
 
-        // Separator
-        out.write(sepMinor.toByteArray(Charsets.UTF_8))
+        // STRAIGHT SEPARATOR 3 (Between item rows and Subtotal)
+        out.write(sepStraight.toByteArray(Charsets.UTF_8))
         out.write(0x0A)
 
         // Subtotal
@@ -725,18 +698,24 @@ object ThermalReceiptFormatter {
             out.write(CMD_BOLD_OFF)
         }
 
-        // Separator
-        out.write(sepMajor.toByteArray(Charsets.UTF_8))
-        out.write(0x0A)
-
         // Full Paid status (after invoice content and BEFORE Footer Note)
         if (isFullPaid) {
-            out.write(CMD_ALIGN_CENTER)
-            out.write(CMD_BOLD_ON)
-            out.write("[✓] FULL PAID\n".toByteArray(Charsets.UTF_8))
-            out.write(CMD_BOLD_OFF)
-            out.write(sepMinor.toByteArray(Charsets.UTF_8))
-            out.write(0x0A)
+            val fullPaidText = "FULL PAID ✓"
+            val raster = renderTextToRaster(
+                text = fullPaidText,
+                widthDots = widthDots,
+                textSizePx = 24f,
+                isBold = true,
+                alignment = Layout.Alignment.ALIGN_CENTER
+            )
+            if (raster != null) {
+                out.write(raster)
+            } else {
+                out.write(CMD_ALIGN_CENTER)
+                out.write(CMD_BOLD_ON)
+                out.write("$fullPaidText\n".toByteArray(Charsets.UTF_8))
+                out.write(CMD_BOLD_OFF)
+            }
         }
 
         // Footer Notes (Centered)
@@ -785,8 +764,6 @@ object ThermalReceiptFormatter {
                 }
             }
         }
-        out.write(sepMajor.toByteArray(Charsets.UTF_8))
-        out.write(0x0A)
 
         // Feed paper so bottom text clears cutter blade
         out.write(CMD_FEED_4)

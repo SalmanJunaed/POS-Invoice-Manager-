@@ -144,17 +144,7 @@ fun ReceiptPreviewDialog(
                             .verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Top Border Separator
-                        val sepWidth = if (is80mm) 48 else 32
-                        Text(
-                            text = "=".repeat(sepWidth),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = receiptFontSize,
-                            softWrap = false,
-                            color = Color(0xFF555555)
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         // Logo: Always square 100 x 100 px, centered, aspect-ratio preserved, no "[Logo]" text
                         Box(
@@ -316,18 +306,22 @@ private fun parseReceiptForPreview(receiptText: String, configuredName: String?)
         return (cleanConfigName ?: "POS STATION") to receiptText
     }
 
-    val firstSepIdx = lines.indexOfFirst { it.trim().startsWith("=") }
-    if (firstSepIdx == -1) {
-        return (cleanConfigName ?: "POS STATION") to receiptText
+    val firstSepIdx = lines.indexOfFirst { it.trim().startsWith("=") || it.trim().startsWith("-") }
+    val hasLeadingSep = firstSepIdx in 0..1
+
+    val startIdx = if (hasLeadingSep) firstSepIdx + 1 else 0
+    val endHeaderIdx = if (hasLeadingSep) {
+        val secondSep = lines.drop(startIdx).indexOfFirst { it.trim().startsWith("=") || it.trim().startsWith("-") }
+        if (secondSep != -1) startIdx + secondSep else lines.size
+    } else {
+        val nextSep = lines.indexOfFirst { it.trim().startsWith("-") || it.trim().startsWith("=") }
+        if (nextSep != -1) nextSep else lines.size
     }
 
-    val secondSepIdx = lines.drop(firstSepIdx + 1).indexOfFirst { it.trim().startsWith("=") }
-    val endHeaderIdx = if (secondSepIdx != -1) firstSepIdx + 1 + secondSepIdx else lines.size
-
-    val headerLines = lines.subList(firstSepIdx + 1, endHeaderIdx)
+    val headerLines = lines.subList(startIdx, endHeaderIdx)
 
     if (cleanConfigName != null) {
-        val width = if (lines[firstSepIdx].trim().length >= 40) {
+        val width = if ((lines.firstOrNull()?.length ?: 32) >= 40) {
             ThermalReceiptFormatter.WIDTH_80MM
         } else {
             ThermalReceiptFormatter.WIDTH_58MM
@@ -353,16 +347,18 @@ private fun parseReceiptForPreview(receiptText: String, configuredName: String?)
         } else {
             minOf(expectedCompanyLines.size.coerceAtLeast(1), headerLines.size)
         }
-        val remaining = lines.subList(firstSepIdx + 1 + skipCount, lines.size).joinToString("\n")
+        val remaining = lines.subList(startIdx + skipCount, lines.size).joinToString("\n")
         return cleanConfigName to remaining
     }
 
-    // Default: find company name line(s) before branch/address
+    // Default: find company name line(s) before branch/address/metadata
     val nameCandidates = mutableListOf<String>()
-    var splitAt = firstSepIdx + 1
-    for (i in (firstSepIdx + 1) until endHeaderIdx) {
+    var splitAt = startIdx
+    for (i in startIdx until endHeaderIdx) {
         val l = lines[i].trim()
-        if (l.startsWith("Branch") || l.startsWith("শাখা") || l.startsWith("Phone") || l.startsWith("ফোন")) {
+        if (l.startsWith("Branch") || l.startsWith("শাখা") || l.startsWith("Phone") || l.startsWith("ফোন") ||
+            l.startsWith("Date:") || l.startsWith("Order ID:") || l.startsWith("Operator:") || l.startsWith("Customer:")
+        ) {
             splitAt = i
             break
         }
@@ -571,29 +567,29 @@ private fun ReceiptBodyWithFullPaidBadge(
     textColor: Color,
     separatorColor: Color = textColor
 ) {
-    val fullPaidMarker = "[✓] FULL PAID"
     val allLines = text.trimEnd().lines()
 
-    val netPayableIdx = allLines.indexOfFirst {
-        it.trim().startsWith("NET PAYABLE", ignoreCase = true)
-    }
     val fullPaidLineIdx = allLines.indexOfFirst {
-        it.contains(fullPaidMarker)
+        it.contains("FULL PAID") || it.contains("✓")
     }
 
-    val totalsEndSepIdx = when {
-        netPayableIdx != -1 -> {
-            ((netPayableIdx + 1) until allLines.size).firstOrNull { isMajorSeparatorLine(allLines[it]) }
-        }
-        fullPaidLineIdx != -1 -> {
-            (fullPaidLineIdx - 1 downTo 0).firstOrNull { isMajorSeparatorLine(allLines[it]) }
-        }
-        else -> null
-    }
+    val sepBeforeFullPaidIdx = if (fullPaidLineIdx != -1) {
+        (fullPaidLineIdx - 1 downTo 0).firstOrNull { isMajorSeparatorLine(allLines[it]) || isMinorSeparatorLine(allLines[it]) }
+    } else null
 
-    if (totalsEndSepIdx != null) {
-        val totalsText = allLines.subList(0, totalsEndSepIdx + 1).joinToString("\n").trimEnd()
-        val footerRegionLines = allLines.subList(totalsEndSepIdx + 1, allLines.size)
+    val splitIdx = sepBeforeFullPaidIdx ?: if (fullPaidLineIdx != -1) fullPaidLineIdx else null
+
+    if (splitIdx != null) {
+        val totalsText = if (sepBeforeFullPaidIdx != null) {
+            allLines.subList(0, sepBeforeFullPaidIdx + 1).joinToString("\n").trimEnd()
+        } else {
+            allLines.subList(0, fullPaidLineIdx).joinToString("\n").trimEnd()
+        }
+        val footerRegionLines = if (sepBeforeFullPaidIdx != null) {
+            allLines.subList(sepBeforeFullPaidIdx + 1, allLines.size)
+        } else {
+            allLines.subList(fullPaidLineIdx, allLines.size)
+        }
 
         if (totalsText.isNotBlank()) {
             Text(
@@ -617,7 +613,7 @@ private fun ReceiptBodyWithFullPaidBadge(
                 val trimmed = line.trim()
                 if (trimmed.isEmpty()) continue
                 when {
-                    trimmed.contains(fullPaidMarker) -> {
+                    trimmed.contains("FULL PAID") || trimmed.contains("✓") -> {
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(
                             modifier = Modifier

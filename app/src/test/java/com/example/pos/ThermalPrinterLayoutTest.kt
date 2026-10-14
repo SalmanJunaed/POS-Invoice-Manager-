@@ -146,7 +146,7 @@ class ThermalPrinterLayoutTest {
 
         // 2. 80mm table format check
         assertTrue("80mm must contain standard column header", text.contains("Item") && text.contains("Rate") && text.contains("Total"))
-        val sep80 = "=".repeat(48)
+        val sep80 = "-".repeat(48)
         assertTrue("80mm must contain 48-char separator", text.contains(sep80))
     }
 
@@ -404,6 +404,59 @@ class ThermalPrinterLayoutTest {
 
         val gsV0 = byteArrayOf(0x1D, 0x76, 0x30, 0x00)
         assertTrue("buildEscPosBytes must rasterize Bangla lines using GS v 0", bytes.toList().containsSubsequence(gsV0))
+    }
+
+    @Test
+    fun testVoucherThreeStraightSeparatorsAndFullPaidTick() {
+        val header = createSampleHeader()
+        val invoice = createSampleInvoice()
+        val lines = createSampleLines()
+
+        val text58 = ThermalReceiptFormatter.generateReceiptText(
+            header = header,
+            invoice = invoice,
+            lines = lines,
+            paperSize = "58mm",
+            footerLine1 = "Thank you",
+            footerLine2 = "Visit Again",
+            isFullPaid = true
+        )
+
+        val sep58 = "-".repeat(32)
+        val sep58Count = text58.lines().count { it.trim() == sep58 }
+        assertEquals("58mm voucher must contain exactly 3 straight separator lines", 3, sep58Count)
+        assertFalse("Must not contain repeated = separators", text58.contains("=".repeat(32)))
+        assertTrue("Must contain FULL PAID ✓", text58.contains("FULL PAID ✓"))
+
+        val text80 = ThermalReceiptFormatter.generateReceiptText(
+            header = header,
+            invoice = invoice,
+            lines = lines,
+            paperSize = "80mm",
+            footerLine1 = "Thank you",
+            footerLine2 = "Visit Again",
+            isFullPaid = true
+        )
+
+        val sep80 = "-".repeat(48)
+        val sep80Count = text80.lines().count { it.trim() == sep80 }
+        assertEquals("80mm voucher must contain exactly 3 straight separator lines", 3, sep80Count)
+        assertFalse("Must not contain repeated = separators", text80.contains("=".repeat(48)))
+        assertTrue("Must contain FULL PAID ✓", text80.contains("FULL PAID ✓"))
+
+        // Verify ESC/POS binary receipt rasterizes the FULL PAID checkmark line
+        val escPos = ThermalReceiptFormatter.buildEscPosReceipt(
+            header = header,
+            invoice = invoice,
+            lines = lines,
+            paperSize = "58mm",
+            autoCutter = true,
+            footerLine1 = "Thank you",
+            footerLine2 = "Visit Again",
+            isFullPaid = true
+        )
+        val gsV0 = byteArrayOf(0x1D, 0x76, 0x30, 0x00)
+        assertTrue("ESC/POS receipt must rasterize FULL PAID check mark using GS v 0", escPos.toList().containsSubsequence(gsV0))
     }
 
     private fun List<Byte>.containsSubsequence(sub: ByteArray): Boolean {
