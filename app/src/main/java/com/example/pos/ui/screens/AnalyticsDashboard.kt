@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -16,12 +17,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.TableChart
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -111,7 +112,7 @@ fun AnalyticsDashboardView(
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     FilterChip(
                         selected = dateFilter == DateFilterMode.ALL,
@@ -124,7 +125,9 @@ fun AnalyticsDashboardView(
                                 softWrap = false
                             )
                         },
-                        modifier = Modifier.testTag("analytics_filter_all")
+                        modifier = Modifier
+                            .defaultMinSize(minWidth = 56.dp, minHeight = 40.dp)
+                            .testTag("analytics_filter_all")
                     )
                     FilterChip(
                         selected = dateFilter == DateFilterMode.TODAY,
@@ -137,7 +140,9 @@ fun AnalyticsDashboardView(
                                 softWrap = false
                             )
                         },
-                        modifier = Modifier.testTag("analytics_filter_today")
+                        modifier = Modifier
+                            .defaultMinSize(minWidth = 58.dp, minHeight = 40.dp)
+                            .testTag("analytics_filter_today")
                     )
                     FilterChip(
                         selected = dateFilter == DateFilterMode.YESTERDAY,
@@ -149,7 +154,8 @@ fun AnalyticsDashboardView(
                                 maxLines = 1,
                                 softWrap = false
                             )
-                        }
+                        },
+                        modifier = Modifier.defaultMinSize(minWidth = 64.dp, minHeight = 40.dp)
                     )
                     FilterChip(
                         selected = dateFilter == DateFilterMode.WEEK,
@@ -161,7 +167,8 @@ fun AnalyticsDashboardView(
                                 maxLines = 1,
                                 softWrap = false
                             )
-                        }
+                        },
+                        modifier = Modifier.defaultMinSize(minWidth = 68.dp, minHeight = 40.dp)
                     )
                     FilterChip(
                         selected = dateFilter == DateFilterMode.MONTH,
@@ -174,7 +181,9 @@ fun AnalyticsDashboardView(
                                 softWrap = false
                             )
                         },
-                        modifier = Modifier.testTag("analytics_filter_month")
+                        modifier = Modifier
+                            .defaultMinSize(minWidth = 68.dp, minHeight = 40.dp)
+                            .testTag("analytics_filter_month")
                     )
                     FilterChip(
                         selected = dateFilter == DateFilterMode.YEAR,
@@ -187,7 +196,9 @@ fun AnalyticsDashboardView(
                                 softWrap = false
                             )
                         },
-                        modifier = Modifier.testTag("analytics_filter_year")
+                        modifier = Modifier
+                            .defaultMinSize(minWidth = 68.dp, minHeight = 40.dp)
+                            .testTag("analytics_filter_year")
                     )
                     FilterChip(
                         selected = dateFilter == DateFilterMode.CUSTOM,
@@ -206,11 +217,15 @@ fun AnalyticsDashboardView(
                                 maxLines = 1,
                                 softWrap = false
                             )
-                        }
+                        },
+                        modifier = Modifier.defaultMinSize(minWidth = 76.dp, minHeight = 40.dp)
                     )
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                )
 
                 // Responsive Period Grouping & Chart Metric Selectors
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -237,13 +252,15 @@ fun AnalyticsDashboardView(
                             }
                         }
                     } else {
-                        Column(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
                             PeriodGroupingSection(
                                 language = language,
                                 analyticsGrouping = analyticsGrouping,
                                 onSelectGrouping = onSelectGrouping
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
                             ChartMetricSection(
                                 language = language,
                                 analyticsMetric = analyticsMetric,
@@ -255,23 +272,23 @@ fun AnalyticsDashboardView(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Live Database Aggregate KPI Summary Cards
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val isNarrowScreen = maxWidth < 380.dp
+            val isNarrowScreen = maxWidth < 360.dp
             val avgTicket = if (aggregatedOrders > 0) aggregatedRoundedBdt / aggregatedOrders else 0L
             val roundingDiffPaisa = (aggregatedRoundedBdt * 100L) - aggregatedRawPaisa
 
             if (isNarrowScreen) {
-                // 2 columns for narrow screens so cards and numbers don't get squished
+                // 2 columns for very narrow screens
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         KpiSummaryCard(
                             title = Localization.get(Localization.Key.KPI_TOTAL_ORDERS, language),
@@ -288,7 +305,7 @@ fun AnalyticsDashboardView(
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         KpiSummaryCard(
                             title = Localization.get(Localization.Key.KPI_TOTAL_SALES, language),
@@ -303,27 +320,22 @@ fun AnalyticsDashboardView(
                             accentColor = Color(0xFF2E7D32)
                         )
                     }
-                    Row(
+                    KpiSummaryCard(
+                        title = Localization.get(Localization.Key.KPI_ROUNDING_DIFF, language),
+                        value = "${if (roundingDiffPaisa >= 0) "+" else ""}${FinancialCalculationEngine.formatPaisaToBdt(roundingDiffPaisa)} ৳",
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        KpiSummaryCard(
-                            title = Localization.get(Localization.Key.KPI_ROUNDING_DIFF, language),
-                            value = "${if (roundingDiffPaisa >= 0) "+" else ""}${FinancialCalculationEngine.formatPaisaToBdt(roundingDiffPaisa)} ৳",
-                            modifier = Modifier.fillMaxWidth(),
-                            accentColor = if (roundingDiffPaisa >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
-                        )
-                    }
+                        accentColor = if (roundingDiffPaisa >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                    )
                 }
             } else {
                 // Standard responsive 3 + 2 layout
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         KpiSummaryCard(
                             title = Localization.get(Localization.Key.KPI_TOTAL_ORDERS, language),
@@ -334,19 +346,19 @@ fun AnalyticsDashboardView(
                         KpiSummaryCard(
                             title = Localization.get(Localization.Key.KPI_TOTAL_SALES, language),
                             value = "${FinancialCalculationEngine.formatPaisaToBdt(aggregatedRawPaisa)} ৳",
-                            modifier = Modifier.weight(1.2f),
+                            modifier = Modifier.weight(1.15f),
                             accentColor = MaterialTheme.colorScheme.secondary
                         )
                         KpiSummaryCard(
                             title = Localization.get(Localization.Key.KPI_TOTAL_ROUNDED, language),
                             value = "${FinancialCalculationEngine.formatWholeBdtToDisplay(aggregatedRoundedBdt)} ৳",
-                            modifier = Modifier.weight(1.2f),
+                            modifier = Modifier.weight(1.15f),
                             accentColor = Color(0xFF2E7D32)
                         )
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         KpiSummaryCard(
                             title = Localization.get(Localization.Key.AVG_ORDER_VALUE, language),
@@ -401,7 +413,7 @@ fun AnalyticsDashboardView(
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.TrendingUp,
+                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
@@ -581,7 +593,6 @@ fun AnalyticsDashboardView(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PeriodGroupingSection(
     language: String,
@@ -606,10 +617,9 @@ private fun PeriodGroupingSection(
                 color = MaterialTheme.colorScheme.primary
             )
         }
-        FlowRow(
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             FilterChip(
                 selected = analyticsGrouping == AnalyticsGrouping.DAY,
@@ -618,11 +628,17 @@ private fun PeriodGroupingSection(
                     Text(
                         text = if (language == "bn") "দিন" else "Day",
                         fontSize = 12.sp,
+                        fontWeight = if (analyticsGrouping == AnalyticsGrouping.DAY) FontWeight.Bold else FontWeight.Normal,
                         maxLines = 1,
-                        softWrap = false
+                        softWrap = false,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 },
-                modifier = Modifier.testTag("grouping_day")
+                modifier = Modifier
+                    .weight(1f)
+                    .defaultMinSize(minHeight = 44.dp)
+                    .testTag("grouping_day")
             )
             FilterChip(
                 selected = analyticsGrouping == AnalyticsGrouping.MONTH,
@@ -631,11 +647,17 @@ private fun PeriodGroupingSection(
                     Text(
                         text = if (language == "bn") "মাস" else "Month",
                         fontSize = 12.sp,
+                        fontWeight = if (analyticsGrouping == AnalyticsGrouping.MONTH) FontWeight.Bold else FontWeight.Normal,
                         maxLines = 1,
-                        softWrap = false
+                        softWrap = false,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 },
-                modifier = Modifier.testTag("grouping_month")
+                modifier = Modifier
+                    .weight(1f)
+                    .defaultMinSize(minHeight = 44.dp)
+                    .testTag("grouping_month")
             )
             FilterChip(
                 selected = analyticsGrouping == AnalyticsGrouping.YEAR,
@@ -644,17 +666,22 @@ private fun PeriodGroupingSection(
                     Text(
                         text = if (language == "bn") "বছর" else "Year",
                         fontSize = 12.sp,
+                        fontWeight = if (analyticsGrouping == AnalyticsGrouping.YEAR) FontWeight.Bold else FontWeight.Normal,
                         maxLines = 1,
-                        softWrap = false
+                        softWrap = false,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 },
-                modifier = Modifier.testTag("grouping_year")
+                modifier = Modifier
+                    .weight(1f)
+                    .defaultMinSize(minHeight = 44.dp)
+                    .testTag("grouping_year")
             )
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ChartMetricSection(
     language: String,
@@ -679,10 +706,9 @@ private fun ChartMetricSection(
                 color = MaterialTheme.colorScheme.secondary
             )
         }
-        FlowRow(
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             FilterChip(
                 selected = analyticsMetric == AnalyticsMetric.ROUNDED_SALES,
@@ -690,12 +716,18 @@ private fun ChartMetricSection(
                 label = {
                     Text(
                         text = if (language == "bn") "রাউন্ডেড (৳)" else "Rounded (৳)",
-                        fontSize = 12.sp,
+                        fontSize = 11.5.sp,
+                        fontWeight = if (analyticsMetric == AnalyticsMetric.ROUNDED_SALES) FontWeight.Bold else FontWeight.Normal,
                         maxLines = 1,
-                        softWrap = false
+                        softWrap = false,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 },
-                modifier = Modifier.testTag("metric_rounded")
+                modifier = Modifier
+                    .weight(1f)
+                    .defaultMinSize(minHeight = 44.dp)
+                    .testTag("metric_rounded")
             )
             FilterChip(
                 selected = analyticsMetric == AnalyticsMetric.RAW_SALES,
@@ -703,12 +735,18 @@ private fun ChartMetricSection(
                 label = {
                     Text(
                         text = if (language == "bn") "আসল (৳)" else "Raw (৳)",
-                        fontSize = 12.sp,
+                        fontSize = 11.5.sp,
+                        fontWeight = if (analyticsMetric == AnalyticsMetric.RAW_SALES) FontWeight.Bold else FontWeight.Normal,
                         maxLines = 1,
-                        softWrap = false
+                        softWrap = false,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 },
-                modifier = Modifier.testTag("metric_raw")
+                modifier = Modifier
+                    .weight(1f)
+                    .defaultMinSize(minHeight = 44.dp)
+                    .testTag("metric_raw")
             )
             FilterChip(
                 selected = analyticsMetric == AnalyticsMetric.TRANSACTION_COUNT,
@@ -716,12 +754,18 @@ private fun ChartMetricSection(
                 label = {
                     Text(
                         text = if (language == "bn") "অর্ডার সংখ্যা" else "Orders",
-                        fontSize = 12.sp,
+                        fontSize = 11.5.sp,
+                        fontWeight = if (analyticsMetric == AnalyticsMetric.TRANSACTION_COUNT) FontWeight.Bold else FontWeight.Normal,
                         maxLines = 1,
-                        softWrap = false
+                        softWrap = false,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 },
-                modifier = Modifier.testTag("metric_count")
+                modifier = Modifier
+                    .weight(1f)
+                    .defaultMinSize(minHeight = 44.dp)
+                    .testTag("metric_count")
             )
         }
     }

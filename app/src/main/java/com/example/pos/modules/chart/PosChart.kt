@@ -241,24 +241,40 @@ fun PosAnalyticsBarChart(
 
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val availableWidth = maxWidth
-                // Each bar column slot needs at least 46.dp to comfortably show labels like "15 Jan" or "জানু ২০২৪"
-                val minSlotWidth = 46.dp
+                // Each bar column slot needs at least 50.dp to comfortably show labels like "15 Jan" or "জানু ২০২৪"
+                val minSlotWidth = 50.dp
                 val requiredWidth = minSlotWidth * dataPoints.size
                 val isScrollable = requiredWidth > availableWidth
 
                 val slotWidth = if (isScrollable) {
-                    50.dp
+                    54.dp
                 } else {
-                    (availableWidth / dataPoints.size).coerceIn(46.dp, 84.dp)
+                    (availableWidth / dataPoints.size).coerceIn(50.dp, 96.dp)
                 }
-                val barWidth = (slotWidth * 0.52f).coerceIn(20.dp, 44.dp)
+                val barWidth = (slotWidth * 0.52f).coerceIn(22.dp, 48.dp)
+                val contentWidth = if (isScrollable) {
+                    (slotWidth + 8.dp) * dataPoints.size + 16.dp
+                } else {
+                    availableWidth
+                }
 
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
+                    val containerModifier = if (isScrollable) {
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(scrollState)
+                    } else {
+                        Modifier.fillMaxWidth()
+                    }
+
+                    Box(
+                        modifier = containerModifier
+                            .height(chartHeightDp + 36.dp)
+                    ) {
                         // Background Y-Axis Reference Guidelines (0%, 33%, 66%, 100%)
                         Canvas(
                             modifier = Modifier
-                                .fillMaxWidth()
+                                .width(contentWidth)
                                 .height(chartHeightDp)
                         ) {
                             val steps = 3
@@ -278,19 +294,12 @@ fun PosAnalyticsBarChart(
                         }
 
                         // Foreground Scrollable or Centered Bars
-                        val rowModifier = if (isScrollable) {
-                            Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(scrollState)
-                        } else {
-                            Modifier.fillMaxWidth()
-                        }
-
                         Row(
-                            modifier = rowModifier
+                            modifier = Modifier
+                                .width(contentWidth)
                                 .height(chartHeightDp + 36.dp)
-                                .padding(horizontal = 4.dp),
-                            horizontalArrangement = if (isScrollable) Arrangement.spacedBy(6.dp) else Arrangement.SpaceEvenly,
+                                .padding(horizontal = 8.dp),
+                            horizontalArrangement = if (isScrollable) Arrangement.spacedBy(8.dp) else Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.Bottom
                         ) {
                             dataPoints.forEachIndexed { index, point ->
