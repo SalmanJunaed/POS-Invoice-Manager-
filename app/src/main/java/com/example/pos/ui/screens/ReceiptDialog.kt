@@ -198,7 +198,8 @@ fun ReceiptPreviewDialog(
                             receiptFontSize = receiptFontSize,
                             receiptLineHeight = receiptLineHeight,
                             textColor = Color(0xFF1A1A1A),
-                            separatorColor = Color(0xFF555555)
+                            separatorColor = Color(0xFF555555),
+                            language = language
                         )
                     }
                 }
@@ -381,10 +382,17 @@ internal data class VoucherItemTableRow(
     val total: String
 )
 
+internal data class VoucherSummaryRow(
+    val label: String,
+    val amount: String,
+    val isBold: Boolean = false
+)
+
 internal data class ParsedVoucherTable(
     val isFiveColumn: Boolean,
     val separatorWidth: Int,
-    val rows: List<VoucherItemTableRow>
+    val rows: List<VoucherItemTableRow>,
+    val summaryRows: List<VoucherSummaryRow> = emptyList()
 )
 
 internal data class ParsedReceiptBodySections(
@@ -401,10 +409,11 @@ internal fun ReceiptFormattedBody(
     receiptLineHeight: TextUnit,
     textColor: Color,
     separatorColor: Color,
-    explicitLines: List<InvoiceLineEntity> = emptyList()
+    explicitLines: List<InvoiceLineEntity> = emptyList(),
+    language: String = "en"
 ) {
-    val parsedSections = remember(bodyText, explicitLines) {
-        parseReceiptSectionsForPreview(bodyText, explicitLines)
+    val parsedSections = remember(bodyText, explicitLines, language) {
+        parseReceiptSectionsForPreview(bodyText, explicitLines, language)
     }
 
     if (parsedSections != null) {
@@ -455,6 +464,7 @@ internal fun ReceiptFormattedBody(
                     receiptLineHeight = receiptLineHeight,
                     textColor = textColor,
                     separatorColor = separatorColor,
+                    language = language,
                     modifier = Modifier.width(tableWidth)
                 )
 
@@ -464,7 +474,8 @@ internal fun ReceiptFormattedBody(
                         receiptFontSize = receiptFontSize,
                         receiptLineHeight = receiptLineHeight,
                         textColor = textColor,
-                        separatorColor = separatorColor
+                        separatorColor = separatorColor,
+                        language = language
                     )
                 }
             }
@@ -475,7 +486,8 @@ internal fun ReceiptFormattedBody(
             receiptFontSize = receiptFontSize,
             receiptLineHeight = receiptLineHeight,
             textColor = textColor,
-            separatorColor = separatorColor
+            separatorColor = separatorColor,
+            language = language
         )
     }
 }
@@ -493,7 +505,12 @@ private fun ReceiptPreTableSection(
         val t = line.trim()
         t.startsWith("Date:", ignoreCase = true) ||
             t.startsWith("Order ID:", ignoreCase = true) ||
-            t.startsWith("Customer:", ignoreCase = true)
+            t.startsWith("Customer:", ignoreCase = true) ||
+            t.startsWith("Operator:", ignoreCase = true) ||
+            t.startsWith("তারিখ:", ignoreCase = true) ||
+            t.startsWith("অর্ডার আইডি:", ignoreCase = true) ||
+            t.startsWith("ক্রেতা:", ignoreCase = true) ||
+            t.startsWith("অপারেটর:", ignoreCase = true)
     }
     val headerEndIdx = if (metadataLineIdx != -1) {
         if (metadataLineIdx > 0 && isMajorSeparatorLine(allLines[metadataLineIdx - 1])) {
@@ -565,12 +582,13 @@ private fun ReceiptBodyWithFullPaidBadge(
     receiptFontSize: TextUnit,
     receiptLineHeight: TextUnit,
     textColor: Color,
-    separatorColor: Color = textColor
+    separatorColor: Color = textColor,
+    language: String = "en"
 ) {
     val allLines = text.trimEnd().lines()
 
     val fullPaidLineIdx = allLines.indexOfFirst {
-        it.contains("FULL PAID") || it.contains("✓")
+        it.contains("FULL PAID") || it.contains("সম্পূর্ণ পরিশোধিত") || it.contains("✓")
     }
 
     val sepBeforeFullPaidIdx = if (fullPaidLineIdx != -1) {
@@ -613,7 +631,7 @@ private fun ReceiptBodyWithFullPaidBadge(
                 val trimmed = line.trim()
                 if (trimmed.isEmpty()) continue
                 when {
-                    trimmed.contains("FULL PAID") || trimmed.contains("✓") -> {
+                    trimmed.contains("FULL PAID") || trimmed.contains("সম্পূর্ণ পরিশোধিত") || trimmed.contains("✓") -> {
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(
                             modifier = Modifier
@@ -630,7 +648,7 @@ private fun ReceiptBodyWithFullPaidBadge(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Full Paid",
+                                text = Localization.get(Localization.Key.VOUCHER_FULL_PAID_BADGE, language),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = Color(0xFF2E7D32)
@@ -686,6 +704,7 @@ private fun VoucherItemTable(
     receiptLineHeight: TextUnit,
     textColor: Color,
     separatorColor: Color,
+    language: String = "en",
     modifier: Modifier = Modifier
 ) {
     val cellFontSize = if (is80mm) receiptFontSize else 10.5.sp
@@ -707,7 +726,7 @@ private fun VoucherItemTable(
         ) {
             if (table.isFiveColumn) {
                 Text(
-                    text = "Item Description",
+                    text = Localization.get(Localization.Key.VOUCHER_DESCRIPTION, language),
                     modifier = Modifier.weight(1.85f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = cellFontSize,
@@ -719,7 +738,7 @@ private fun VoucherItemTable(
                     color = textColor
                 )
                 Text(
-                    text = "Qty",
+                    text = Localization.get(Localization.Key.VOUCHER_QTY, language),
                     modifier = Modifier.weight(0.60f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = cellFontSize,
@@ -731,7 +750,7 @@ private fun VoucherItemTable(
                     color = textColor
                 )
                 Text(
-                    text = "Unit",
+                    text = Localization.get(Localization.Key.VOUCHER_UNIT, language),
                     modifier = Modifier.weight(0.60f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = cellFontSize,
@@ -743,7 +762,7 @@ private fun VoucherItemTable(
                     color = textColor
                 )
                 Text(
-                    text = "Rate",
+                    text = Localization.get(Localization.Key.VOUCHER_RATE, language),
                     modifier = Modifier.weight(0.85f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = cellFontSize,
@@ -755,7 +774,7 @@ private fun VoucherItemTable(
                     color = textColor
                 )
                 Text(
-                    text = "Total",
+                    text = Localization.get(Localization.Key.VOUCHER_TOTAL, language),
                     modifier = Modifier.weight(0.95f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = cellFontSize,
@@ -768,7 +787,7 @@ private fun VoucherItemTable(
                 )
             } else {
                 Text(
-                    text = "Item Name",
+                    text = Localization.get(Localization.Key.VOUCHER_ITEM_NAME, language),
                     modifier = Modifier.weight(1.35f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = cellFontSize,
@@ -780,7 +799,7 @@ private fun VoucherItemTable(
                     color = textColor
                 )
                 Text(
-                    text = "Qty",
+                    text = Localization.get(Localization.Key.VOUCHER_QTY, language),
                     modifier = Modifier.weight(0.75f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = cellFontSize,
@@ -792,7 +811,7 @@ private fun VoucherItemTable(
                     color = textColor
                 )
                 Text(
-                    text = "Rate",
+                    text = Localization.get(Localization.Key.VOUCHER_RATE, language),
                     modifier = Modifier.weight(0.90f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = cellFontSize,
@@ -804,7 +823,7 @@ private fun VoucherItemTable(
                     color = textColor
                 )
                 Text(
-                    text = "Total",
+                    text = Localization.get(Localization.Key.VOUCHER_TOTAL, language),
                     modifier = Modifier.weight(1.00f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = cellFontSize,
@@ -973,23 +992,101 @@ private fun VoucherItemTable(
             softWrap = false,
             color = separatorColor
         )
+
+        // Summary Rows (Sub Total & TOTAL) rendered in the item table columns
+        table.summaryRows.forEachIndexed { sIdx, sRow ->
+            val tag = if (sRow.isBold) "voucher_total_row" else "voucher_subtotal_row"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 1.dp)
+                    .testTag(tag),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (table.isFiveColumn) {
+                    Text(
+                        text = sRow.label,
+                        modifier = Modifier
+                            .weight(1.85f)
+                            .testTag("${tag}_label"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = cellFontSize,
+                        lineHeight = cellLineHeight,
+                        fontWeight = if (sRow.isBold) FontWeight.Bold else FontWeight.Normal,
+                        textAlign = TextAlign.Start,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = textColor
+                    )
+                    Spacer(modifier = Modifier.weight(0.60f))
+                    Spacer(modifier = Modifier.weight(0.60f))
+                    Spacer(modifier = Modifier.weight(0.85f))
+                    Text(
+                        text = sRow.amount,
+                        modifier = Modifier
+                            .weight(0.95f)
+                            .testTag("${tag}_amount"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = cellFontSize,
+                        lineHeight = cellLineHeight,
+                        fontWeight = if (sRow.isBold) FontWeight.Bold else FontWeight.Normal,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        softWrap = false,
+                        color = textColor
+                    )
+                } else {
+                    Text(
+                        text = sRow.label,
+                        modifier = Modifier
+                            .weight(1.35f)
+                            .testTag("${tag}_label"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = cellFontSize,
+                        lineHeight = cellLineHeight,
+                        fontWeight = if (sRow.isBold) FontWeight.Bold else FontWeight.Normal,
+                        textAlign = TextAlign.Start,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = textColor
+                    )
+                    Spacer(modifier = Modifier.weight(0.75f))
+                    Spacer(modifier = Modifier.weight(0.90f))
+                    Text(
+                        text = sRow.amount,
+                        modifier = Modifier
+                            .weight(1.00f)
+                            .testTag("${tag}_amount"),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = cellFontSize,
+                        lineHeight = cellLineHeight,
+                        fontWeight = if (sRow.isBold) FontWeight.Bold else FontWeight.Normal,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        softWrap = false,
+                        color = textColor
+                    )
+                }
+            }
+        }
     }
 }
 
 private val DETAIL_58MM_REGEX = Regex(
-    """^\s+(.+?)\s+x\s+(\d+(?:\.\d*)?)\s+(\d+(?:\.\d*)?)\s+BDT\s*$"""
+    """^\s+(.+?)\s+x\s+([\d\u09E6-\u09EF]+(?:\.[\d\u09E6-\u09EF]*)?)\s+([\d\u09E6-\u09EF]+(?:\.[\d\u09E6-\u09EF]*)?)\s*(?:BDT)?\s*$"""
 )
 
 private val SINGLE_58MM_REGEX = Regex(
-    """^(.+?)\s+(\S+)\s+(\d+(?:\.\d*)?)\s+(\d+(?:\.\d*)?)\s*$"""
+    """^(.+?)\s+(\S+)\s+([\d\u09E6-\u09EF]+(?:\.[\d\u09E6-\u09EF]*)?)\s+([\d\u09E6-\u09EF]+(?:\.[\d\u09E6-\u09EF]*)?)\s*$"""
 )
 
 private val ROW_80MM_REGEX = Regex(
-    """^(.+?)\s+(\d+(?:\.\d*)?)\s+(\S+(?:\s+\S+)?)\s+(\d+(?:\.\d*)?)\s+(\d+(?:\.\d*)?)\s*$"""
+    """^(.+?)\s+([\d\u09E6-\u09EF]+(?:\.[\d\u09E6-\u09EF]*)?)\s+(\S+(?:\s+\S+)?)\s+([\d\u09E6-\u09EF]+(?:\.[\d\u09E6-\u09EF]*)?)\s+([\d\u09E6-\u09EF]+(?:\.[\d\u09E6-\u09EF]*)?)\s*$"""
 )
 
 private val ROW_80MM_NO_UNIT_REGEX = Regex(
-    """^(.+?)\s+(\d+(?:\.\d*)?)\s{2,}(\d+(?:\.\d*)?)\s+(\d+(?:\.\d*)?)\s*$"""
+    """^(.+?)\s+([\d\u09E6-\u09EF]+(?:\.[\d\u09E6-\u09EF]*)?)\s{2,}([\d\u09E6-\u09EF]+(?:\.[\d\u09E6-\u09EF]*)?)\s+([\d\u09E6-\u09EF]+(?:\.[\d\u09E6-\u09EF]*)?)\s*$"""
 )
 
 private fun isMajorSeparatorLine(line: String): Boolean {
@@ -1002,20 +1099,34 @@ private fun isMinorSeparatorLine(line: String): Boolean {
     return trimmed.length >= 16 && trimmed.all { it == '-' }
 }
 
+private fun extractAmountFromSummaryLine(line: String): String {
+    val tokens = line.trim().split(Regex("\\s+"))
+    return when {
+        tokens.isEmpty() -> ""
+        tokens.last().equals("BDT", ignoreCase = true) && tokens.size > 1 -> tokens[tokens.size - 2]
+        else -> tokens.last()
+    }
+}
+
 internal fun parseReceiptSectionsForPreview(
     bodyText: String,
-    explicitLines: List<InvoiceLineEntity> = emptyList()
+    explicitLines: List<InvoiceLineEntity> = emptyList(),
+    language: String = "en"
 ): ParsedReceiptBodySections? {
     val allLines = bodyText.lines()
     val tableHeaderIdx = allLines.indexOfFirst { line ->
         val t = line.trim()
-        (t.startsWith("Item Name") || t.startsWith("Item Description")) &&
-            t.contains("Qty") && t.contains("Rate") && t.contains("Total")
+        val hasNameOrDesc = t.startsWith("Item Name") || t.startsWith("Item Description") ||
+                t.startsWith("পণ্যের নাম") || t.startsWith("বিবরণ")
+        val hasQty = t.contains("Qty") || t.contains("পরিমাণ")
+        val hasRate = t.contains("Rate") || t.contains("দর")
+        val hasTotal = t.contains("Total") || t.contains("মোট")
+        hasNameOrDesc && hasQty && hasRate && hasTotal
     }
     if (tableHeaderIdx == -1) return null
 
     val headerLine = allLines[tableHeaderIdx].trim()
-    val isFiveColumn = headerLine.startsWith("Item Description")
+    val isFiveColumn = headerLine.startsWith("Item Description") || headerLine.startsWith("বিবরণ")
     val topSepIdx = if (tableHeaderIdx + 1 < allLines.size && isMinorSeparatorLine(allLines[tableHeaderIdx + 1])) {
         tableHeaderIdx + 1
     } else {
@@ -1035,7 +1146,44 @@ internal fun parseReceiptSectionsForPreview(
 
     val preTableText = allLines.subList(0, tableHeaderIdx).joinToString("\n")
     val rawItemLines = allLines.subList(topSepIdx + 1, bottomSepIdx)
-    val postTableText = allLines.subList(bottomSepIdx + 1, allLines.size).joinToString("\n")
+
+    // Parse summary rows (Subtotal and TOTAL) following bottom separator
+    val summaryRows = mutableListOf<VoucherSummaryRow>()
+    var postTableStartIdx = bottomSepIdx + 1
+
+    for (idx in (bottomSepIdx + 1) until allLines.size) {
+        val line = allLines[idx]
+        val trimmed = line.trim()
+        if (trimmed.isEmpty()) {
+            postTableStartIdx = idx + 1
+            continue
+        }
+
+        val isSubTotal = trimmed.startsWith("Sub Total", ignoreCase = true) || trimmed.startsWith("উপমোট")
+        val isTotal = trimmed.startsWith("TOTAL", ignoreCase = true) ||
+                trimmed.startsWith("NET PAYABLE", ignoreCase = true) ||
+                trimmed.startsWith("মোট") ||
+                trimmed.startsWith("সর্বমোট")
+
+        if (isSubTotal) {
+            val amount = extractAmountFromSummaryLine(trimmed)
+            val isBn = language.equals("bn", ignoreCase = true) || trimmed.startsWith("উপমোট")
+            val label = if (isBn) Localization.get(Localization.Key.VOUCHER_SUBTOTAL, "bn") else Localization.get(Localization.Key.VOUCHER_SUBTOTAL, "en")
+            summaryRows.add(VoucherSummaryRow(label = label, amount = amount, isBold = false))
+            postTableStartIdx = idx + 1
+        } else if (isTotal) {
+            val amount = extractAmountFromSummaryLine(trimmed)
+            val isBn = language.equals("bn", ignoreCase = true) || trimmed.startsWith("মোট") || trimmed.startsWith("সর্বমোট")
+            val label = if (isBn) Localization.get(Localization.Key.VOUCHER_TOTAL_SUMMARY, "bn") else Localization.get(Localization.Key.VOUCHER_TOTAL_SUMMARY, "en")
+            summaryRows.add(VoucherSummaryRow(label = label, amount = amount, isBold = true))
+            postTableStartIdx = idx + 1
+        } else {
+            // Reached non-summary line (FULL PAID, separator, or footer)
+            break
+        }
+    }
+
+    val postTableText = allLines.subList(postTableStartIdx, allLines.size).joinToString("\n")
 
     val rows = if (explicitLines.isNotEmpty()) {
         explicitLines.map { item ->
@@ -1070,7 +1218,8 @@ internal fun parseReceiptSectionsForPreview(
         table = ParsedVoucherTable(
             isFiveColumn = isFiveColumn,
             separatorWidth = sepWidth,
-            rows = rows
+            rows = rows,
+            summaryRows = summaryRows
         ),
         postTableText = postTableText
     )

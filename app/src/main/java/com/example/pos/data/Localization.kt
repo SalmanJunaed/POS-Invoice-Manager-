@@ -341,7 +341,24 @@ object Localization {
         EXPORT_RECORDS_TO_EXPORT,
         EXPORT_NO_RANGE_NOTICE,
         BTN_SHARE_FILE,
-        BTN_DISMISS
+        BTN_DISMISS,
+
+        // Voucher Specific Labels
+        VOUCHER_ITEM_NAME,
+        VOUCHER_DESCRIPTION,
+        VOUCHER_QTY,
+        VOUCHER_UNIT,
+        VOUCHER_RATE,
+        VOUCHER_TOTAL,
+        VOUCHER_SUBTOTAL,
+        VOUCHER_TOTAL_SUMMARY,
+        VOUCHER_DATE,
+        VOUCHER_ORDER_ID,
+        VOUCHER_OPERATOR,
+        VOUCHER_CUSTOMER,
+        VOUCHER_FULL_PAID,
+        VOUCHER_FULL_PAID_BADGE,
+        VOUCHER_WALK_IN
     }
 
     private val enMap = mapOf(
@@ -658,7 +675,24 @@ object Localization {
         Key.EXPORT_RECORDS_TO_EXPORT to "Records to export",
         Key.EXPORT_NO_RANGE_NOTICE to "No date range selected: Full database export.",
         Key.BTN_SHARE_FILE to "Share / Open File",
-        Key.BTN_DISMISS to "Dismiss"
+        Key.BTN_DISMISS to "Dismiss",
+
+        // Voucher Specific Labels
+        Key.VOUCHER_ITEM_NAME to "Item Name",
+        Key.VOUCHER_DESCRIPTION to "Item Description",
+        Key.VOUCHER_QTY to "Qty",
+        Key.VOUCHER_UNIT to "Unit",
+        Key.VOUCHER_RATE to "Rate",
+        Key.VOUCHER_TOTAL to "Total",
+        Key.VOUCHER_SUBTOTAL to "Sub Total",
+        Key.VOUCHER_TOTAL_SUMMARY to "TOTAL",
+        Key.VOUCHER_DATE to "Date",
+        Key.VOUCHER_ORDER_ID to "Order ID",
+        Key.VOUCHER_OPERATOR to "Operator",
+        Key.VOUCHER_CUSTOMER to "Customer",
+        Key.VOUCHER_FULL_PAID to "FULL PAID ✓",
+        Key.VOUCHER_FULL_PAID_BADGE to "Full Paid",
+        Key.VOUCHER_WALK_IN to "Walk-in"
     )
 
     private val bnMap = mapOf(
@@ -975,6 +1009,23 @@ object Localization {
         Key.EXPORT_RECORDS_TO_EXPORT to "এক্সপোর্টযোগ্য রেকর্ড",
         Key.EXPORT_NO_RANGE_NOTICE to "কোনো তারিখ নির্দিষ্ট করা হয়নি: সম্পূর্ণ ডাটাবেজ এক্সপোর্ট হবে।",
         Key.BTN_SHARE_FILE to "ফাইল শেয়ার / ওপেন করুন",
-        Key.BTN_DISMISS to "ঠিক আছে"
+        Key.BTN_DISMISS to "ঠিক আছে",
+
+        // Voucher Specific Labels
+        Key.VOUCHER_ITEM_NAME to "পণ্যের নাম",
+        Key.VOUCHER_DESCRIPTION to "বিবরণ",
+        Key.VOUCHER_QTY to "পরিমাণ",
+        Key.VOUCHER_UNIT to "একক",
+        Key.VOUCHER_RATE to "দর",
+        Key.VOUCHER_TOTAL to "মোট",
+        Key.VOUCHER_SUBTOTAL to "উপমোট",
+        Key.VOUCHER_TOTAL_SUMMARY to "মোট",
+        Key.VOUCHER_DATE to "তারিখ",
+        Key.VOUCHER_ORDER_ID to "অর্ডার আইডি",
+        Key.VOUCHER_OPERATOR to "অপারেটর",
+        Key.VOUCHER_CUSTOMER to "ক্রেতা",
+        Key.VOUCHER_FULL_PAID to "সম্পূর্ণ পরিশোধিত ✓",
+        Key.VOUCHER_FULL_PAID_BADGE to "সম্পূর্ণ পরিশোধিত",
+        Key.VOUCHER_WALK_IN to "সাধারণ ক্রেতা"
     )
 }

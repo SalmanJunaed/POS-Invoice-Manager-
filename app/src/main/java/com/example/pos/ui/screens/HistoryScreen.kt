@@ -1546,12 +1546,16 @@ fun ReceiptDetailsDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
+                        val invoiceTitle = if (language == "bn") "ইনভয়েস #${invoice.orderId}" else "Invoice #${invoice.orderId}"
+                        val walkInLabel = if (language == "bn") Localization.get(Localization.Key.VOUCHER_WALK_IN, "bn") else Localization.get(Localization.Key.VOUCHER_WALK_IN, "en")
+                        val customerLabel = if (language == "bn") Localization.get(Localization.Key.VOUCHER_CUSTOMER, "bn") else Localization.get(Localization.Key.VOUCHER_CUSTOMER, "en")
+                        val customerVal = if (invoice.customerInfo.isNotBlank()) invoice.customerInfo else walkInLabel
                         Text(
-                            text = "Invoice #${invoice.orderId}",
+                            text = invoiceTitle,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
-                            text = "Customer: ${if (invoice.customerInfo.isNotBlank()) invoice.customerInfo else "Walk-in"}",
+                            text = "$customerLabel: $customerVal",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1615,7 +1619,7 @@ fun ReceiptDetailsDialog(
 
                             if (receiptText.isBlank()) {
                                 Text(
-                                    text = "Loading receipt text...",
+                                    text = if (language == "bn") "ভাউচার লোড হচ্ছে..." else "Loading receipt text...",
                                     modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = receiptFontSize,
@@ -1630,7 +1634,8 @@ fun ReceiptDetailsDialog(
                                     receiptLineHeight = receiptLineHeight,
                                     textColor = MaterialTheme.colorScheme.onSurface,
                                     separatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    explicitLines = lines
+                                    explicitLines = lines,
+                                    language = language
                                 )
                             }
                         }

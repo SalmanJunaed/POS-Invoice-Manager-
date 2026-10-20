@@ -25,7 +25,8 @@ object EscPosPrinterEngine {
         paperSize: String,
         footerLine1: String,
         footerLine2: String,
-        isFullPaid: Boolean = true
+        isFullPaid: Boolean = true,
+        lang: String = "en"
     ): String {
         return ThermalReceiptFormatter.generateReceiptText(
             header = header,
@@ -34,7 +35,8 @@ object EscPosPrinterEngine {
             paperSize = paperSize,
             footerLine1 = footerLine1,
             footerLine2 = footerLine2,
-            isFullPaid = isFullPaid
+            isFullPaid = isFullPaid,
+            lang = lang
         )
     }
 
@@ -62,7 +64,27 @@ object EscPosPrinterEngine {
                 if (hasBangla || hasTick) {
                     val trimmed = line.trim()
                     val leadingSpaces = line.takeWhile { it == ' ' }.length
-                    val isFullPaid = line.contains("FULL PAID") || hasTick
+                    val isFullPaid = line.contains("FULL PAID") || line.contains("সম্পূর্ণ পরিশোধিত") || hasTick
+
+                    // Summary line check (Subtotal / Total with Bangla)
+                    val isSummary = trimmed.startsWith("Sub Total", ignoreCase = true) || trimmed.startsWith("উপমোট") ||
+                            trimmed.startsWith("TOTAL", ignoreCase = true) || trimmed.startsWith("মোট")
+                    if (isSummary && hasBangla) {
+                        val tokens = trimmed.split(Regex("\\s+"))
+                        val amount = if (tokens.last().equals("BDT", ignoreCase = true) && tokens.size > 1) tokens[tokens.size - 2] else tokens.last()
+                        val label = if (tokens.last().equals("BDT", ignoreCase = true) && tokens.size > 2) tokens.dropLast(2).joinToString(" ") else tokens.dropLast(1).joinToString(" ")
+                        val isBold = trimmed.startsWith("TOTAL", ignoreCase = true) || trimmed.startsWith("মোট")
+                        val raster = if (is80mm) {
+                            ThermalReceiptFormatter.render80mmSummaryRowToRaster(label, amount, widthDots, isBold)
+                        } else {
+                            ThermalReceiptFormatter.render58mmSummaryRowToRaster(label, amount, widthDots, isBold)
+                        }
+                        if (raster != null) {
+                            out.write(raster)
+                            continue
+                        }
+                    }
+
                     val isCompanyHeader = index in 0..4 && !line.contains("=") && !line.contains("-") && leadingSpaces >= 4
                     val alignment = if (isFullPaid || leadingSpaces >= 4) Layout.Alignment.ALIGN_CENTER else Layout.Alignment.ALIGN_NORMAL
                     val raster = ThermalReceiptFormatter.renderTextToRaster(
@@ -105,7 +127,8 @@ object EscPosPrinterEngine {
         footerLine1: String,
         footerLine2: String,
         logoBitmap: Bitmap? = null,
-        isFullPaid: Boolean = true
+        isFullPaid: Boolean = true,
+        lang: String = "en"
     ): ByteArray {
         return ThermalReceiptFormatter.buildEscPosReceipt(
             header = header,
@@ -116,7 +139,8 @@ object EscPosPrinterEngine {
             footerLine1 = footerLine1,
             footerLine2 = footerLine2,
             logoBitmap = logoBitmap,
-            isFullPaid = isFullPaid
+            isFullPaid = isFullPaid,
+            lang = lang
         )
     }
 

@@ -599,7 +599,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             paperSize = settings?.paperSize ?: "58mm",
             footerLine1 = settings?.footerNoteLine1 ?: "",
             footerLine2 = settings?.footerNoteLine2 ?: "",
-            isFullPaid = isDraftFullPaid.value
+            isFullPaid = isDraftFullPaid.value,
+            lang = _language.value
         )
     }
 
@@ -683,7 +684,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                     paperSize = paperSize,
                     footerLine1 = settings?.footerNoteLine1 ?: "",
                     footerLine2 = settings?.footerNoteLine2 ?: "",
-                    isFullPaid = isPaid
+                    isFullPaid = isPaid,
+                    lang = _language.value
                 )
 
                 if (printDirectly && settings?.bluetoothPrinterAddress != null) {
@@ -701,7 +703,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                         footerLine1 = settings?.footerNoteLine1 ?: "",
                         footerLine2 = settings?.footerNoteLine2 ?: "",
                         logoBitmap = logoBitmap,
-                        isFullPaid = isPaid
+                        isFullPaid = isPaid,
+                        lang = _language.value
                     )
                     val printResult = BluetoothPrinterManager.print(
                         deviceAddress = settings.bluetoothPrinterAddress,
@@ -1059,7 +1062,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 lines = lines,
                 paperSize = paperSize,
                 footerLine1 = settings?.footerNoteLine1 ?: "",
-                footerLine2 = settings?.footerNoteLine2 ?: ""
+                footerLine2 = settings?.footerNoteLine2 ?: "",
+                lang = _language.value
             )
             _selectedInvoiceForReceipt.value = invoice
             _receiptPopupLines.value = lines
@@ -1096,7 +1100,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 lines = lines,
                 paperSize = paperSize,
                 footerLine1 = settings?.footerNoteLine1 ?: "",
-                footerLine2 = settings?.footerNoteLine2 ?: ""
+                footerLine2 = settings?.footerNoteLine2 ?: "",
+                lang = _language.value
             )
 
             if (address != null) {
@@ -1113,7 +1118,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                     autoCutter = autoCutter,
                     footerLine1 = settings?.footerNoteLine1 ?: "",
                     footerLine2 = settings?.footerNoteLine2 ?: "",
-                    logoBitmap = logoBitmap
+                    logoBitmap = logoBitmap,
+                    lang = _language.value
                 )
                 val res = BluetoothPrinterManager.print(address, settings?.bluetoothPrinterName, payload)
                 if (res.isSuccess) {
@@ -1545,6 +1551,29 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         _language.value = lang
         viewModelScope.launch {
             repository.updateLanguage(lang)
+        }
+        if (_receiptPreviewOpen.value) {
+            _receiptPreviewText.value = generateCurrentReceiptText()
+        }
+        val curSelected = _selectedInvoiceForReceipt.value
+        if (_isReceiptPopupOpen.value && curSelected != null) {
+            viewModelScope.launch {
+                val lines = _receiptPopupLines.value.ifEmpty {
+                    repository.getLinesForOrderDirect(curSelected.orderId)
+                }
+                val header = companyHeader.value
+                val settings = appSettings.value
+                val paperSize = settings?.paperSize ?: "58mm"
+                _receiptPreviewText.value = EscPosPrinterEngine.generateReceiptText(
+                    header = header,
+                    invoice = curSelected,
+                    lines = lines,
+                    paperSize = paperSize,
+                    footerLine1 = settings?.footerNoteLine1 ?: "",
+                    footerLine2 = settings?.footerNoteLine2 ?: "",
+                    lang = lang
+                )
+            }
         }
     }
 
