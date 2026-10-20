@@ -49,6 +49,7 @@ class VoucherLocalizationAndSummaryColumnsTest {
                 orderId = "ORD-9910",
                 itemId = "P1",
                 itemName = "Mustard Oil",
+                itemType = "Liquid",
                 unitPricePaisa = 25000L,
                 quantityStr = "1",
                 unit = "Ltr",
@@ -58,6 +59,7 @@ class VoucherLocalizationAndSummaryColumnsTest {
                 orderId = "ORD-9910",
                 itemId = "P2",
                 itemName = "Sugar",
+                itemType = "Product",
                 unitPricePaisa = 10000L,
                 quantityStr = "2",
                 unit = "Kg",
@@ -128,7 +130,7 @@ class VoucherLocalizationAndSummaryColumnsTest {
         val totalLine = lines.firstOrNull { it.contains("TOTAL") }
         assertNotNull("TOTAL line must be present", totalLine)
         assertTrue("TOTAL must start at column 0", totalLine!!.startsWith("TOTAL"))
-        assertTrue("TOTAL amount must end at column width 32", totalLine.trimEnd().endsWith("450"))
+        assertTrue("TOTAL amount must end at column width 32", totalLine.trimEnd().endsWith("450.00"))
     }
 
     @Test
@@ -165,7 +167,7 @@ class VoucherLocalizationAndSummaryColumnsTest {
         val totalLine = lines.firstOrNull { it.startsWith("মোট") }
         assertNotNull("মোট line must be present", totalLine)
         assertTrue("মোট must start at column 0", totalLine!!.startsWith("মোট"))
-        assertTrue("মোট amount must end at right", totalLine.trimEnd().endsWith("450"))
+        assertTrue("মোট amount must end at right", totalLine.trimEnd().endsWith("450.00"))
     }
 
     @Test
@@ -193,7 +195,7 @@ class VoucherLocalizationAndSummaryColumnsTest {
         val totalLine = lines.firstOrNull { it.contains("TOTAL") }
         assertNotNull("TOTAL line must be present", totalLine)
         assertTrue("TOTAL must start at column 0", totalLine!!.startsWith("TOTAL"))
-        assertTrue("TOTAL amount must end at column width 48", totalLine.trimEnd().endsWith("450"))
+        assertTrue("TOTAL amount must end at column width 48", totalLine.trimEnd().endsWith("450.00"))
     }
 
     @Test
@@ -221,7 +223,7 @@ class VoucherLocalizationAndSummaryColumnsTest {
         val totalLine = lines.firstOrNull { it.startsWith("মোট") }
         assertNotNull("মোট line must be present", totalLine)
         assertTrue("মোট must start at column 0", totalLine!!.startsWith("মোট"))
-        assertTrue("মোট amount must end at right", totalLine.trimEnd().endsWith("450"))
+        assertTrue("মোট amount must end at right", totalLine.trimEnd().endsWith("450.00"))
     }
 
     @Test
@@ -245,7 +247,7 @@ class VoucherLocalizationAndSummaryColumnsTest {
         assertEquals("450.00", enSections.table.summaryRows[0].amount)
         assertFalse(enSections.table.summaryRows[0].isBold)
         assertEquals("TOTAL", enSections.table.summaryRows[1].label)
-        assertEquals("450", enSections.table.summaryRows[1].amount)
+        assertEquals("450.00", enSections.table.summaryRows[1].amount)
         assertTrue(enSections.table.summaryRows[1].isBold)
         // postTableText should NOT duplicate Subtotal or Total
         assertFalse(enSections.postTableText.contains("Sub Total"))
@@ -270,7 +272,7 @@ class VoucherLocalizationAndSummaryColumnsTest {
         assertEquals("450.00", bnSections.table.summaryRows[0].amount)
         assertFalse(bnSections.table.summaryRows[0].isBold)
         assertEquals("মোট", bnSections.table.summaryRows[1].label)
-        assertEquals("450", bnSections.table.summaryRows[1].amount)
+        assertEquals("450.00", bnSections.table.summaryRows[1].amount)
         assertTrue(bnSections.table.summaryRows[1].isBold)
         // postTableText should NOT duplicate Subtotal or Total
         assertFalse(bnSections.postTableText.contains("উপমোট"))
